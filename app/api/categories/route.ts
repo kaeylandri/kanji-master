@@ -1,29 +1,34 @@
+// app/api/categories/route.ts
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import kanjiData from "@/data/kanji.json"; // Pastikan path ini sesuai dengan lokasi file kanji.json kamu
 
 export async function GET() {
   try {
-    const categories = await prisma.category.findMany({
-      orderBy: { orderIndex: "asc" },
-      include: {
-        _count: { select: { kanji: true } },
-        kanji: { select: { id: true } }, // 🆕 Ambil array ID kanji untuk cek hafalan
-      },
+    // Kita akan mengelompokkan kanji berdasarkan kategorinya dari file JSON
+    const categoryMap: Record<string, any> = {};
+
+    // Asumsi: file kanji.json berisi array objek dengan properti category: { slug, title, priority }
+    kanjiData.forEach((k: any) => {
+      const catSlug = k.category?.slug || "uncategorized";
+      const catTitle = k.category?.title || "Uncategorized";
+      
+      if (!categoryMap[catSlug]) {
+        categoryMap[catSlug] = {
+          id: Object.keys(categoryMap).length + 1,
+          slug: catSlug,
+          title: catTitle,
+          priority: k.category?.priority || null,
+          count: 0,
+          kanjiIds: [],
+        };
+      }
+      
+      categoryMap[catSlug].count += 1;
+      categoryMap[catSlug].kanjiIds.push(k.id);
     });
 
-    // Format ulang agar ringan
-    const data = categories.map((cat) => ({
-      id: cat.id,
-      slug: cat.slug,
-      title: cat.title,
-      priority: cat.priority,
-      count: cat._count.kanji,
-      kanjiIds: cat.kanji.map((k) => k.id),
-    }));
-
-    return NextResponse.json(data);
+    const categories = Object.values(categoryMap);
+    return NextResponse.json(categories);
   } catch (err) {
     console.error("API categories error:", err);
     return NextResponse.json(

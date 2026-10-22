@@ -1,16 +1,12 @@
+// app/api/kotoba/semua/route.ts
 import { NextResponse } from "next/server";
-import kotobaData from "@/data/kotoba.json";
+import kotobaData from "@/data/kotoba.json"; // Sesuaikan path JSON kotoba kamu
 
-export async function GET(
-  _req: Request,
-  { params }: { params: Promise<{ kategori: string }> }
-) {
-  const { kategori } = await params;
-  if (kategori === "semua") return NextResponse.json(kotobaData);
-  
-  const decodedKategori = decodeURIComponent(kategori);
-  const filtered = kotobaData.filter((k) => k.category === decodedKategori);
-  
-  if (filtered.length === 0) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json(filtered);
+export async function GET() {
+  try {
+    return NextResponse.json(kotobaData);
+  } catch (err) {
+    console.error("API kotoba error:", err);
+    return NextResponse.json({ error: "Internal error" }, { status: 500 });
+  }
 }
