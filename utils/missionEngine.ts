@@ -1,0 +1,106 @@
+import { MissionDefinition, MissionProgress, MissionPeriod } from "@/data/missions/types";
+import { MISSIONS } from "@/data/missions/config";
+import { getCurrentMultiplier } from "./luckyEngine"; // 🆕 Import Lucky Engine di paling atas
+
+// Mendapatkan kunci periode (Harian / Mingguan)
+export function getPeriodKey(period: MissionPeriod) {
+  const now = new Date();
+  const offset = 7 * 60; 
+  const localDate = new Date(now.getTime() + (offset + now.getTimezoneOffset()) * 60000);
+
+  if (period === "daily") {
+    return localDate.toISOString().split("T")[0]; 
+  }
+  if (period === "weekly") {
+    const day = localDate.getDay();
+    const diff = localDate.getDate() - day + (day === 0 ? -6 : 1);
+    const monday = new Date(localDate.setDate(diff));
+    return `week-${monday.toISOString().split("T")[0]}`;
+  }
+  return "month"; 
+}
+
+// Mendapatkan status misi dari localStorage
+export function getMissionsState() {
+  if (typeof window === "undefined") return null;
+  let state = JSON.parse(localStorage.getItem("kanjiMaster.missions.v1") || "null");
+  if (!state) {
+    state = { exp: 0, coins: 0, progress: {} };
+  }
+  return state;
+}
+
+// 🆕 Fungsi untuk menambahkan hadiah (dengan multiplier jika Hari Keberuntungan)
+export function addReward(baseExp: number, baseCoins: number) {
+  const multiplier = getCurrentMultiplier();
+  
+  const finalExp = baseExp * multiplier;
+  const finalCoins = baseCoins * multiplier;
+
+  const state = getMissionsState();
+  if (state) {
+    state.exp += finalExp;
+    state.coins += finalCoins;
+    localStorage.setItem("kanjiMaster.missions.v1", JSON.stringify(state));
+    window.dispatchEvent(new Event("missionUpdated"));
+  }
+}
+
+// Menambah progres misi
+export function addMissionProgress(eventType: string, amount: number = 1) {
+  const state = getMissionsState();
+  if (!state) return;
+  let hasChanges = false;
+
+  MISSIONS.forEach((mission) => {
+    if (mission.eventType !== eventType) return;
+    const periodKey = getPeriodKey(mission.period);
+    
+    if (!state.progress[mission.id]) state.progress[mission.id] = {};
+    if (!state.progress[mission.id][periodKey]) {
+      state.progress[mission.id][periodKey] = { progress: 0, isCompleted: false, isClaimed: false };
+    }
+
+    const currentProg = state.progress[mission.id][periodKey];
+    if (currentProg.isCompleted) return;
+
+    currentProg.progress += amount;
+    if (currentProg.progress >= mission.target) {
+      currentProg.progress = mission.target;
+      currentProg.isCompleted = true;
+    }
+    hasChanges = true;
+  });
+
+  if (hasChanges) {
+    localStorage.setItem("kanjiMaster.missions.v1", JSON.stringify(state));
+    window.dispatchEvent(new Event("missionUpdated"));
+  }
+}
+
+// Mengklaim hadiah misi
+export function claimReward(missionId: string) {
+  const state = getMissionsState();
+  if (!state) return false;
+
+  const mission = MISSIONS.find(m => m.id === missionId);
+  if (!mission) return false;
+
+  const periodKey = getPeriodKey(mission.period);
+  const currentProg = state.progress[missionId]?.[periodKey];
+
+  // Validasi: Misi harus selesai dan belum diklaim
+  if (!currentProg || !currentProg.isCompleted || currentProg.isClaimed) {
+    return false;
+  }
+
+  // 🆕 Panggil addReward agar hadiah otomatis dikali jika Hari Keberuntungan
+  addReward(mission.rewardExp, mission.rewardCoins);
+  
+  // Tandai sudah diklaim
+  currentProg.isClaimed = true;
+  localStorage.setItem("kanjiMaster.missions.v1", JSON.stringify(state));
+  window.dispatchEvent(new Event("missionUpdated"));
+  
+  return true;
+}

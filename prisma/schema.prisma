@@ -1,0 +1,32 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Category {
+  id          Int      @id @default(autoincrement())
+  slug        String   @unique
+  title       String
+  description String?
+  groupName   String?
+  priority    String?
+  orderIndex  Int      @default(0)
+  kanji       Kanji[]
+  createdAt   DateTime @default(now())
+}
+
+model Kanji {
+  id         Int      @id @default(autoincrement())
+  categoryId Int
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  character  String
+  hiragana   String
+  meaning    String
+  romaji     String?     
+  notes      String?
+  createdAt  DateTime @default(now())
+}
