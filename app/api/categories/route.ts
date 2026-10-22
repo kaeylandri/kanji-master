@@ -4,9 +4,10 @@ import kotobaData from "@/data/kotoba.json";
 
 export async function GET() {
   try {
-    // Hanya ambil kategori dari Kotoba (karena Kanji belum ada file JSON-nya)
+    // Ambil daftar nama kategori dari file kotoba.json
     const kotobaCategories = Array.from(new Set(kotobaData.map((k: any) => k.category)));
     
+    // Format ulang ke bentuk yang dibutuhkan halaman
     const categories = kotobaCategories.map((catName, index) => {
       const kotobaInCat = kotobaData.filter((k: any) => k.category === catName);
       return {
@@ -15,12 +16,13 @@ export async function GET() {
         title: catName,
         priority: null,
         count: kotobaInCat.length,
-        kanjiIds: [],
+        kanjiIds: [], // Kosongkan dulu karena data Kanji belum ada
       };
     });
 
     return NextResponse.json(categories);
   } catch (err) {
-    return NextResponse.json({ error: "Internal error" }, { status: 500 });
+    console.error("API categories error:", err);
+    return NextResponse.json([], { status: 200 }); // Kembalikan array kosong jika error
   }
 }
