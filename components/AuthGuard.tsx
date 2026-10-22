@@ -1,13 +1,14 @@
 // components/AuthGuard.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { supabase } from "@/utils/supabase";
 import { syncDataToDatabase } from "@/utils/syncEngine";
-import { checkStreakExpiry } from "@/utils/luckyEngine"; // 🆕 Import fungsi baru
+import { checkStreakExpiry } from "@/utils/luckyEngine";
 
-export default function AuthGuard({ children }: { children: React.ReactNode }) {
+// Pisahkan logika ke komponen internal
+function AuthGuardContent({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [isLoading, setIsLoading] = useState(true);
@@ -23,10 +24,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         router.push("/");
       } else {
         if (session) {
-          // 🆕 Jalankan pengecekan api padam setiap kali halaman dibuka
-          checkStreakExpiry(); 
-          
-          // Jalankan sinkronisasi
+          checkStreakExpiry();
           syncDataToDatabase();
         }
         setIsLoading(false);
@@ -38,7 +36,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "SIGNED_OUT") router.push("/login");
       if (event === "SIGNED_IN") {
-        checkStreakExpiry(); // 🆕 Cek juga saat login
+        checkStreakExpiry();
         syncDataToDatabase();
       }
     });
@@ -56,4 +54,18 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   }
 
   return <>{children}</>;
+}
+
+// Bungkus dengan Suspense di komponen utama
+export default function AuthGuard({ children }: { children: React.ReactNode }) {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center">
+        <div className="text-6xl mb-4 animate-bounce">🎌</div>
+        <div className="text-slate-500 font-bold animate-pulse text-lg">Memuat...</div>
+      </div>
+    }>
+      <AuthGuardContent>{children}</AuthGuardContent>
+    </Suspense>
+  );
 }
