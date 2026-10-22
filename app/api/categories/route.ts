@@ -1,28 +1,29 @@
 // app/api/categories/route.ts
 import { NextResponse } from "next/server";
-import kotobaData from "@/data/kotoba.json";
+import kanjiData from "@/data/kanji.json";
 
 export async function GET() {
   try {
-    // Ambil daftar nama kategori dari file kotoba.json
-    const kotobaCategories = Array.from(new Set(kotobaData.map((k: any) => k.category)));
-    
-    // Format ulang ke bentuk yang dibutuhkan halaman
-    const categories = kotobaCategories.map((catName, index) => {
-      const kotobaInCat = kotobaData.filter((k: any) => k.category === catName);
-      return {
-        id: index + 1,
-        slug: catName.toLowerCase().replace(/ /g, "-"),
-        title: catName,
-        priority: null,
-        count: kotobaInCat.length,
-        kanjiIds: [], // Kosongkan dulu karena data Kanji belum ada
-      };
+    const categoriesMap: Record<string, any> = {};
+
+    kanjiData.forEach((k: any) => {
+      if (!categoriesMap[k.categorySlug]) {
+        categoriesMap[k.categorySlug] = {
+          id: Object.keys(categoriesMap).length + 1,
+          slug: k.categorySlug,
+          title: k.categoryTitle,
+          priority: "tinggi",
+          count: 0,
+          kanjiIds: [],
+        };
+      }
+      categoriesMap[k.categorySlug].count += 1;
+      categoriesMap[k.categorySlug].kanjiIds.push(k.id);
     });
 
+    const categories = Object.values(categoriesMap);
     return NextResponse.json(categories);
   } catch (err) {
-    console.error("API categories error:", err);
-    return NextResponse.json([], { status: 200 }); // Kembalikan array kosong jika error
+    return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 }
