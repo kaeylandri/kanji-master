@@ -1,10 +1,12 @@
 // app/api/kotoba/semua/route.ts
 import { NextResponse } from "next/server";
-import kotobaData from "@/data/kotoba.json"; // Sesuaikan path JSON kotoba kamu
+import { supabase } from "@/utils/supabase";
 
 export async function GET() {
   try {
-    return NextResponse.json(kotobaData);
+    const { data, error } = await supabase.from('kotoba').select('*'); // Sesuaikan nama tabel
+    if (error) throw error;
+    return NextResponse.json(data);
   } catch (err) {
     console.error("API kotoba error:", err);
     return NextResponse.json({ error: "Internal error" }, { status: 500 });
