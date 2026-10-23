@@ -1,3 +1,6 @@
+// utils/memoryEngine.ts
+import { supabase } from "./supabase";
+
 export type MemoryStatus = "new" | "learning" | "review" | "mastered";
 
 export type MemoryRecord = {
@@ -12,26 +15,27 @@ export type MemoryRecord = {
 
 type Rating = "forgot" | "hard" | "good" | "easy";
 
-const STORAGE_KEY = "kanjiMaster.memorization.v1";
-
-// Mendapatkan semua data memori
+// Mendapatkan status memori dari localStorage (sebagai cache)
 export function getMemoryState(): Record<string, MemoryRecord> {
   if (typeof window === "undefined") return {};
-  return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+  return JSON.parse(localStorage.getItem("kanjiMaster.memorization.v1") || "{}");
 }
 
-// Simpan data memori
+// Simpan cache memori ke localStorage
 function saveMemoryState(state: Record<string, MemoryRecord>) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  localStorage.setItem("kanjiMaster.memorization.v1", JSON.stringify(state));
 }
 
-// Fungsi Utama: Memperbarui status berdasarkan penilaian user
-export function updateMemory(id: number, type: "kotoba" | "kanji", rating: Rating) {
-  const state = getMemoryState();
+// 🆕 Fungsi Utama: Memperbarui status berdasarkan penilaian user (Server + Cache)
+export async function updateMemory(id: number, type: "kotoba" | "kanji", rating: Rating) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+
   const key = `${type}_${id}`;
   const now = new Date();
   
-  // 1. Ambil rekaman sebelumnya atau buat baru
+  // 1. Ambil rekaman sebelumnya dari cache (atau dari database jika perlu)
+  const state = getMemoryState();
   let record: MemoryRecord = state[key] || {
     status: "new",
     correctCount: 0,
@@ -44,15 +48,13 @@ export function updateMemory(id: number, type: "kotoba" | "kanji", rating: Ratin
 
   record.lastReviewedAt = now.toISOString();
 
-  // 2. Terapkan Aturan (Sesuai Spesifikasi)
+  // 2. Terapkan Aturan Spaced Repetition
   if (rating === "forgot") {
-    // Lupa Total
     record.incorrectCount += 1;
     record.status = "review";
     record.intervalDays = 0;
     record.nextReviewAt = new Date(now.getTime() + 10 * 60 * 1000).toISOString(); // 10 Menit
   } else {
-    // Ingat (Hard, Good, Easy)
     record.correctCount += 1;
     record.successfulReviewSessions += 1;
 
@@ -65,24 +67,37 @@ export function updateMemory(id: number, type: "kotoba" | "kanji", rating: Ratin
       record.intervalDays = record.successfulReviewSessions >= 3 ? 14 : 4;
     }
 
-    // Cek apakah sudah memenuhi kriteria Dikuasai
-    record.status =
-      record.successfulReviewSessions >= 3 && rating !== "hard"
-        ? "mastered"
-        : "learning";
-
-    record.nextReviewAt = new Date(
-      now.getTime() + record.intervalDays * 24 * 60 * 60 * 1000
-    ).toISOString();
+    record.status = record.successfulReviewSessions >= 3 && rating !== "hard" ? "mastered" : "learning";
+    record.nextReviewAt = new Date(now.getTime() + record.intervalDays * 24 * 60 * 60 * 1000).toISOString();
   }
 
-  // 3. Simpan
+  // 3. Simpan ke Cache (Local)
   state[key] = record;
   saveMemoryState(state);
+
+  // 4. 🆕 Simpan ke Database (Supabase)
+  try {
+    await supabase.from('user_progress').upsert({
+      user_id: user.id,
+      item_type: type,
+      item_id: id,
+      is_mastered: record.status === "mastered",
+      ease_factor: record.intervalDays > 0 ? record.intervalDays : 2.5,
+      interval_days: record.intervalDays,
+      next_review_at: record.nextReviewAt,
+      review_count: record.successfulReviewSessions,
+      updated_at: now.toISOString(),
+    }, {
+      onConflict: 'user_id,item_type,item_id'
+    });
+  } catch (err) {
+    console.error("Gagal simpan progress ke DB:", err);
+  }
+
   return record;
 }
 
-// Cek apakah sudah jatuh tempo
+// 🆕 Cek apakah item perlu direview (dibaca dari localStorage untuk performa cepat)
 export function isDueForReview(id: number, type: "kotoba" | "kanji") {
   const state = getMemoryState();
   const key = `${type}_${id}`;
@@ -95,7 +110,7 @@ export function isDueForReview(id: number, type: "kotoba" | "kanji") {
   return now >= nextReview;
 }
 
-// 🆕 Fungsi untuk mendapatkan status visual (sudah jatuh tempo atau belum)
+// Status visual
 export function getVisualStatus(id: number, type: "kotoba" | "kanji") {
   const state = getMemoryState();
   const key = `${type}_${id}`;
@@ -103,15 +118,8 @@ export function getVisualStatus(id: number, type: "kotoba" | "kanji") {
 
   if (!record) return "new";
   
-  // Jika statusnya "mastered" tapi sudah jatuh tempo, ubah visualnya jadi "review"
-  if (record.status === "mastered" && isDueForReview(id, type)) {
-    return "review";
-  }
-  
-  // Jika statusnya "learning" dan jatuh tempo
-  if (record.status === "learning" && isDueForReview(id, type)) {
-    return "review";
-  }
+  if (record.status === "mastered" && isDueForReview(id, type)) return "review";
+  if (record.status === "learning" && isDueForReview(id, type)) return "review";
 
   return record.status;
 }

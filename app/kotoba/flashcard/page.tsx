@@ -36,23 +36,35 @@ export default function SmartFlashcardKotobaPage() {
 
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
-  // 🆕 State untuk Item & Full Reveal
+  // State untuk Item & Full Reveal
   const [inventory, setInventory] = useState<any>({});
   const [revealActive, setRevealActive] = useState(false);
   const [revealTimeLeft, setRevealTimeLeft] = useState(0);
 
   // Load Data
   useEffect(() => {
-    fetch("/api/kotoba/semua")
-      .then((res) => res.json())
-      .then((data: Kotoba[]) => {
+    const loadData = async () => {
+      try {
+        const res = await fetch("/api/kotoba/semua");
+        const data: Kotoba[] = await res.json();
+        
+        // 🆕 Filter menggunakan Promise.all karena isDueForReview sekarang sync tapi berbasis cache
+        // (Kita pakai versi sinkron karena data SR sudah ada di localStorage)
         const dueKotoba = data.filter((k) => isDueForReview(k.id, "kotoba"));
+        
         const sessionData = dueKotoba.length > 0 
           ? dueKotoba.slice(0, 15) 
           : data.sort(() => 0.5 - Math.random()).slice(0, 10);
+        
         setKotobaList(sessionData);
         setLoading(false);
-      });
+      } catch (err) {
+        console.error("Gagal memuat kotoba:", err);
+        setLoading(false);
+      }
+    };
+    
+    loadData();
 
     setInventory(getInventory());
     window.addEventListener("inventoryUpdated", () => setInventory(getInventory()));
@@ -72,12 +84,15 @@ export default function SmartFlashcardKotobaPage() {
   const handleUseReveal = () => {
     if (useItem("reveal")) {
       setRevealActive(true);
-      setRevealTimeLeft(170); // 170 detik = 2 menit 50 detik
+      setRevealTimeLeft(170);
+      setInventory(getInventory());
       triggerToast("🪄 Full Reveal Aktif selama 2:50!", "success");
+    } else {
+      triggerToast("Kamu tidak punya item Full Reveal!", "error");
     }
   };
 
-  // Buat 4 Opsi Jawaban setiap kali index berubah
+  // Buat 4 Opsi Jawaban
   useEffect(() => {
     if (kotobaList.length === 0) return;
     const current = kotobaList[currentIndex];
@@ -101,10 +116,12 @@ export default function SmartFlashcardKotobaPage() {
     setIsCorrect(correct);
   };
 
-  const handleRate = (rating: "forgot" | "hard" | "good" | "easy") => {
+  // 🆕 handleRate menjadi async
+  const handleRate = async (rating: "forgot" | "hard" | "good" | "easy") => {
     const current = kotobaList[currentIndex];
     
-    updateMemory(current.id, "kotoba", rating);
+    // Simpan ke database & cache
+    await updateMemory(current.id, "kotoba", rating);
     
     try {
       const saved = JSON.parse(localStorage.getItem("uniqueKotobaAnswered") || "[]");
@@ -159,7 +176,7 @@ export default function SmartFlashcardKotobaPage() {
           <div className="h-full bg-emerald-500 transition-all duration-300" style={{ width: `${progress}%` }} />
         </div>
 
-        {/* 🆕 Tombol Full Reveal */}
+        {/* Tombol Full Reveal */}
         <div className="mb-4">
           {!revealActive && inventory.reveal > 0 && (
             <button 
@@ -183,7 +200,6 @@ export default function SmartFlashcardKotobaPage() {
             
             <div className="text-5xl font-bold text-white mb-2">{current.word}</div>
             
-            {/* 🆕 Tampilkan Jawaban Otomatis jika Reveal Aktif */}
             {revealActive && (
               <div className="text-lg text-purple-300 font-semibold mb-4 animate-in fade-in slide-in-from-top-2">
                 Arti: {current.meaning}
