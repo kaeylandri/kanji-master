@@ -2,8 +2,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import { supabase } from "@/utils/supabase";
+import AppLayout from "@/components/AppLayout";
 import { triggerToast } from "@/utils/toast";
-import AppLayout from "@/components/AppLayout"; // Hanya butuh AppLayout
 
 export default function FriendRequestsPage() {
   const [requests, setRequests] = useState<any[]>([]);
@@ -14,18 +14,46 @@ export default function FriendRequestsPage() {
     const { data: { user } } = await supabase.auth.getUser();
     
     if (user) {
-      // Ambil permintaan yang dikirim KE kita (friend_id = ID kita) dan statusnya masih pending
-      const { data, error } = await supabase
+      // 1. Ambil data permintaan (tanpa join dulu untuk menghindari error RLS)
+      const { data: friendsData, error: friendsError } = await supabase
         .from('friends')
-        .select(`
-          id, status, user_id,
-          profiles:user_id (username, total_exp, avatar_url)
-        `)
+        .select('id, status, user_id')
         .eq('friend_id', user.id)
         .eq('status', 'pending');
 
-      if (data) setRequests(data);
-      if (error) console.error(error);
+      if (friendsError) {
+        console.error("Error ambil friends:", friendsError);
+        setLoading(false);
+        return;
+      }
+
+      if (friendsData && friendsData.length > 0) {
+        // 2. Ambil ID pengirim
+        const senderIds = friendsData.map(f => f.user_id);
+
+        // 3. Ambil profil pengirim dari tabel profiles
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, username, total_exp, avatar_url')
+          .in('id', senderIds);
+
+        if (profilesError) {
+          console.error("Error ambil profiles:", profilesError);
+        }
+
+        // 4. Gabungkan data
+        const combinedData = friendsData.map(req => {
+          const profile = profilesData?.find(p => p.id === req.user_id);
+          return {
+            ...req,
+            sender: profile || { username: "Pengguna Tidak Dikenal", total_exp: 0 }
+          };
+        });
+
+        setRequests(combinedData);
+      } else {
+        setRequests([]);
+      }
     }
     setLoading(false);
   };
@@ -42,7 +70,6 @@ export default function FriendRequestsPage() {
 
     if (!error) {
       triggerToast(`Permintaan ${action === 'accepted' ? 'diterima' : 'ditolak'}!`, "success");
-      // Hapus dari layar (filter out)
       setRequests(requests.filter(r => r.id !== requestId));
     } else {
       triggerToast("Gagal memproses permintaan.", "error");
@@ -60,7 +87,7 @@ export default function FriendRequestsPage() {
         </div>
 
         {loading ? (
-          <div className="text-center text-slate-400 animate-pulse font-bold text-lg">Memuat...</div>
+          <div className="text-center text-slate-400 animate-pulse font-bold text-lg py-10">Memuat...</div>
         ) : requests.length === 0 ? (
           <div className="bg-white p-8 rounded-3xl border border-slate-200 text-center text-slate-500 shadow-sm">
             Tidak ada permintaan pertemanan baru.
@@ -68,7 +95,7 @@ export default function FriendRequestsPage() {
         ) : (
           <div className="space-y-4">
             {requests.map((req) => {
-              const sender = Array.isArray(req.profiles) ? req.profiles[0] : req.profiles;
+              const sender = req.sender;
               return (
                 <div key={req.id} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4 hover:shadow-md transition">
                   <div className="flex items-center gap-4 w-full sm:w-auto">
