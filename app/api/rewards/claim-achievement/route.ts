@@ -15,7 +15,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Data tidak lengkap" }, { status: 400 });
     }
 
-    // 1. Cek apakah sudah pernah diklaim
+    // 1. Cek klaim
     const { data: existingClaim } = await supabaseAdmin
       .from('achievement_rewards')
       .select('id')
@@ -58,12 +58,21 @@ export async function POST(request: Request) {
       })
       .eq('id', userId);
 
-    // 4. Update inventory (Item)
+    // 4. 🆕 Update Inventory (Item)
     if (rewardHint > 0 || rewardFreeze > 0 || rewardReveal > 0) {
-      // Ambil inventory saat ini dari tabel (asumsi ada tabel user_inventory)
-      // Untuk sementara, kita simpan di user_progress atau tabel baru
-      // Rekomendasi: buat tabel user_inventory
-      console.log("TODO: Save item to inventory");
+      const { data: inv } = await supabaseAdmin
+        .from('user_inventory')
+        .select('*')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      await supabaseAdmin.from('user_inventory').upsert({
+        user_id: userId,
+        hint: (inv?.hint || 0) + rewardHint,
+        freeze_count: (inv?.freeze_count || 0) + rewardFreeze,
+        reveal: (inv?.reveal || 0) + rewardReveal,
+        updated_at: new Date().toISOString(),
+      });
     }
 
     return NextResponse.json({ 

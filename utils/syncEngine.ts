@@ -1,14 +1,12 @@
 // utils/syncEngine.ts
 import { supabase } from "./supabase";
-import { ACHIEVEMENTS_KANJI } from "@/data/achievements-kanji";
-import { ACHIEVEMENTS_KOTOBA } from "@/data/achievements";
 
 export async function syncDataToDatabase() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return;
 
   try {
-    // === 1. AMBIL DATA DARI DATABASE (jika ada) ===
+    // === 1. AMBIL DATA DARI DATABASE ===
     const { data: dbProfile } = await supabase
       .from('profiles')
       .select('total_exp, sakura_coins, current_streak, longest_streak')
@@ -23,8 +21,7 @@ export async function syncDataToDatabase() {
     const missions = JSON.parse(localStorage.getItem("kanjiMaster.missions.v1") || "{}");
     const streak = JSON.parse(localStorage.getItem("kanjiMaster.streak.v1") || "{}");
     
-    // === 3. TENTUKAN DATA MANA YANG DIPAKAI (Local vs DB) ===
-    // Jika DB punya data lebih tinggi, pakai DB. Jika local lebih tinggi, pakai local.
+    // === 3. TENTUKAN DATA FINAL (Local vs DB) ===
     const finalExp = Math.max(dbProfile?.total_exp || 0, missions.exp || 0);
     const finalCoins = Math.max(dbProfile?.sakura_coins || 0, missions.coins || 0);
     const finalStreak = Math.max(dbProfile?.current_streak || 0, streak.currentStreak || 0);
@@ -41,16 +38,23 @@ export async function syncDataToDatabase() {
     }).eq('id', user.id);
 
     // === 5. UPDATE LOCALSTORAGE DENGAN DATA DARI DB (jika DB lebih tinggi) ===
-    if (dbProfile && (dbProfile.total_exp > (missions.exp || 0))) {
-      missions.exp = dbProfile.total_exp;
-      localStorage.setItem("kanjiMaster.missions.v1", JSON.stringify(missions));
-    }
-    if (dbProfile && (dbProfile.sakura_coins > (missions.coins || 0))) {
-      missions.coins = dbProfile.sakura_coins;
-      localStorage.setItem("kanjiMaster.missions.v1", JSON.stringify(missions));
+    if (dbProfile) {
+      const updatedMissions = {
+        ...missions,
+        exp: Math.max(missions.exp || 0, dbProfile.total_exp),
+        coins: Math.max(missions.coins || 0, dbProfile.sakura_coins),
+      };
+      localStorage.setItem("kanjiMaster.missions.v1", JSON.stringify(updatedMissions));
+
+      const updatedStreak = {
+        ...streak,
+        currentStreak: Math.max(streak.currentStreak || 0, dbProfile.current_streak),
+        longestStreak: Math.max(streak.longestStreak || 0, dbProfile.longest_streak),
+      };
+      localStorage.setItem("kanjiMaster.streak.v1", JSON.stringify(updatedStreak));
     }
 
-    // === 6. SINKRONISASI HAFALAN (hanya yang belum ada di DB) ===
+    // === 6. SINKRONISASI HAFALAN ===
     const { data: existingProgress } = await supabase
       .from('user_progress')
       .select('item_type, item_id')
@@ -76,8 +80,8 @@ export async function syncDataToDatabase() {
     }
 
     // === 7. UPDATE LOCALSTORAGE DENGAN DATA DARI DB ===
-    const allKanjiFromDB = Array.from(existingKanji).concat(newKanji);
-    const allKotobaFromDB = Array.from(existingKotoba).concat(newKotoba);
+    const allKanjiFromDB = Array.from(new Set([...existingKanji, ...newKanji]));
+    const allKotobaFromDB = Array.from(new Set([...existingKotoba, ...newKotoba]));
     localStorage.setItem("masteredKanji", JSON.stringify(allKanjiFromDB));
     localStorage.setItem("masteredKotoba", JSON.stringify(allKotobaFromDB));
 

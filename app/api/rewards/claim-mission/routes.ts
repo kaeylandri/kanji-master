@@ -2,7 +2,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-// Gunakan service role key agar bisa update tanpa RLS (hanya di server)
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -10,14 +9,13 @@ const supabaseAdmin = createClient(
 
 export async function POST(request: Request) {
   try {
-    // 1. Dapatkan data dari body
     const { userId, missionId, periodKey, rewardExp, rewardCoins } = await request.json();
 
     if (!userId || !missionId) {
       return NextResponse.json({ error: "Data tidak lengkap" }, { status: 400 });
     }
 
-    // 2. Cek apakah misi ini sudah pernah diklaim di periode ini
+    // 1. Cek apakah misi sudah diklaim
     const { data: existingClaim } = await supabaseAdmin
       .from('mission_claims')
       .select('id')
@@ -30,7 +28,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Misi ini sudah diklaim!" }, { status: 400 });
     }
 
-    // 3. Catat klaim (tabel baru)
+    // 2. Catat klaim
     const { error: insertError } = await supabaseAdmin
       .from('mission_claims')
       .insert({
@@ -44,22 +42,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Gagal mencatat klaim: " + insertError.message }, { status: 500 });
     }
 
-    // 4. Tambahkan reward ke profil user
-    // Ambil dulu EXP & Koin saat ini
+    // 3. Update profil (Gunakan nama kolom yang KONSISTEN: total_exp & sakura_coins)
     const { data: profile } = await supabaseAdmin
       .from('profiles')
-      .select('exp, coins')
+      .select('total_exp, sakura_coins')
       .eq('id', userId)
       .single();
 
-    const currentExp = profile?.exp || 0;
-    const currentCoins = profile?.coins || 0;
+    const currentExp = profile?.total_exp || 0;
+    const currentCoins = profile?.sakura_coins || 0;
 
     const { error: updateError } = await supabaseAdmin
       .from('profiles')
       .update({
-        exp: currentExp + rewardExp,
-        coins: currentCoins + rewardCoins,
+        total_exp: currentExp + rewardExp,
+        sakura_coins: currentCoins + rewardCoins,
       })
       .eq('id', userId);
 
