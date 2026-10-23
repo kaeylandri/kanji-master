@@ -1,6 +1,8 @@
+// utils/missionEngine.ts
 import { MissionDefinition, MissionProgress, MissionPeriod } from "@/data/missions/types";
 import { MISSIONS } from "@/data/missions/config";
-import { getCurrentMultiplier } from "./luckyEngine"; // 🆕 Import Lucky Engine di paling atas
+import { getCurrentMultiplier } from "./luckyEngine";
+import { supabase } from "./supabase"; // 🆕 Import Supabase
 
 // Mendapatkan kunci periode (Harian / Mingguan)
 export function getPeriodKey(period: MissionPeriod) {
@@ -30,7 +32,7 @@ export function getMissionsState() {
   return state;
 }
 
-// 🆕 Fungsi untuk menambahkan hadiah (dengan multiplier jika Hari Keberuntungan)
+// 🆕 Fungsi untuk menambahkan hadiah (dipanggil dari server atau manual)
 export function addReward(baseExp: number, baseCoins: number) {
   const multiplier = getCurrentMultiplier();
   
@@ -78,8 +80,8 @@ export function addMissionProgress(eventType: string, amount: number = 1) {
   }
 }
 
-// Mengklaim hadiah misi
-export function claimReward(missionId: string) {
+// 🆕 Mengklaim hadiah misi (Async - Validasi di Server)
+export async function claimReward(missionId: string) {
   const state = getMissionsState();
   if (!state) return false;
 
@@ -89,18 +91,43 @@ export function claimReward(missionId: string) {
   const periodKey = getPeriodKey(mission.period);
   const currentProg = state.progress[missionId]?.[periodKey];
 
-  // Validasi: Misi harus selesai dan belum diklaim
+  // Validasi awal di client
   if (!currentProg || !currentProg.isCompleted || currentProg.isClaimed) {
     return false;
   }
 
-  // 🆕 Panggil addReward agar hadiah otomatis dikali jika Hari Keberuntungan
-  addReward(mission.rewardExp, mission.rewardCoins);
-  
-  // Tandai sudah diklaim
-  currentProg.isClaimed = true;
-  localStorage.setItem("kanjiMaster.missions.v1", JSON.stringify(state));
-  window.dispatchEvent(new Event("missionUpdated"));
-  
-  return true;
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return false;
+
+  try {
+    // Panggil API Server untuk validasi & klaim
+    const res = await fetch("/api/rewards/claim-mission", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId: user.id,
+        missionId: mission.id,
+        periodKey: periodKey,
+        rewardExp: mission.rewardExp,
+        rewardCoins: mission.rewardCoins,
+      }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      console.error("Server error:", data.error);
+      return false;
+    }
+
+    // Tandai sudah diklaim di localStorage
+    currentProg.isClaimed = true;
+    localStorage.setItem("kanjiMaster.missions.v1", JSON.stringify(state));
+    window.dispatchEvent(new Event("missionUpdated"));
+    
+    return true;
+  } catch (err) {
+    console.error("Fetch error:", err);
+    return false;
+  }
 }

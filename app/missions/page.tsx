@@ -32,13 +32,14 @@ export default function MissionsPage() {
     );
   }
 
-  const handleClaim = (id: string) => {
-    const success = claimReward(id);
+  // 🆕 handleClaim menjadi async
+  const handleClaim = async (id: string) => {
+    const success = await claimReward(id);
     if (success) {
       triggerToast("Hadiah berhasil diklaim!", "success");
       loadData();
     } else {
-      triggerToast("Gagal mengklaim hadiah.", "error");
+      triggerToast("Gagal mengklaim hadiah atau sudah diklaim.", "error");
     }
   };
 
