@@ -1,5 +1,7 @@
 // utils/syncEngine.ts
 import { supabase } from "./supabase";
+import { ACHIEVEMENTS_KANJI } from "@/data/achievements-kanji";
+import { ACHIEVEMENTS_KOTOBA } from "@/data/achievements";
 
 export async function syncDataToDatabase() {
   const { data: { user } } = await supabase.auth.getUser();
@@ -11,7 +13,7 @@ export async function syncDataToDatabase() {
     const uniqueKotoba = JSON.parse(localStorage.getItem("uniqueKotobaAnswered") || "[]");
     const userProfile = JSON.parse(localStorage.getItem("userProfile") || "{}");
 
-    // Ambil data achievement dari localStorage
+    // Ambil data achievement
     const kanjiStats = JSON.parse(localStorage.getItem("kanjiAchievements") || "{}");
     const kotobaStats = JSON.parse(localStorage.getItem("kotobaExamStats") || "{}");
     
@@ -19,7 +21,10 @@ export async function syncDataToDatabase() {
     const unlockedKotoba = kotobaStats.unlocked || [];
     const allUnlockedAchievements = Array.from(new Set([...unlockedKanji, ...unlockedKotoba]));
 
-    // 1. Sinkronisasi Profil Utama
+    // Ambil skor survival
+    const survivalHighScore = parseInt(localStorage.getItem("survivalHighScore") || "0", 10);
+
+    // 1. Sinkronisasi Profil Utama + Statistik
     const missions = JSON.parse(localStorage.getItem("kanjiMaster.missions.v1") || "{}");
     const streak = JSON.parse(localStorage.getItem("kanjiMaster.streak.v1") || "{}");
     
@@ -31,6 +36,11 @@ export async function syncDataToDatabase() {
       avatar_url: userProfile.avatar || null,
       username: userProfile.name || undefined,
       bio: userProfile.bio || undefined,
+      // 🆕 Data baru untuk Leaderboard
+      survival_high_score: survivalHighScore,
+      total_achievements: allUnlockedAchievements.length,
+      mastered_kanji_count: localMasteredKanji.length,
+      mastered_kotoba_count: localMasteredKotoba.length,
     }).eq('id', user.id);
 
     // 2. Bersihkan & Simpan Progress Hafalan (Kanji & Kotoba)
@@ -55,7 +65,7 @@ export async function syncDataToDatabase() {
       await supabase.from('user_progress').insert(progressData);
     }
 
-    // 🆕 3. Bersihkan & Simpan Achievement
+    // 3. Bersihkan & Simpan Achievement
     await supabase.from('user_achievements').delete().eq('user_id', user.id);
 
     if (allUnlockedAchievements.length > 0) {

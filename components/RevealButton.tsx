@@ -1,5 +1,5 @@
+// components/RevealButton.tsx
 "use client";
-
 import { useEffect, useState } from "react";
 import { getInventory, useItem } from "@/utils/luckyEngine";
 import { triggerToast } from "@/utils/toast";
@@ -9,7 +9,6 @@ export default function RevealButton({ onRevealActive }: { onRevealActive: (isAc
   const [revealActive, setRevealActive] = useState(false);
   const [timeLeft, setTimeLeft] = useState(0);
 
-  // Load inventory
   useEffect(() => {
     const loadInv = () => setInventory(getInventory());
     loadInv();
@@ -17,7 +16,6 @@ export default function RevealButton({ onRevealActive }: { onRevealActive: (isAc
     return () => window.removeEventListener("inventoryUpdated", loadInv);
   }, []);
 
-  // Timer countdown
   useEffect(() => {
     if (!revealActive) return;
     if (timeLeft <= 0) {
@@ -42,8 +40,9 @@ export default function RevealButton({ onRevealActive }: { onRevealActive: (isAc
 
   if (revealActive) {
     return (
-      <div className="w-full bg-purple-100 text-purple-700 font-bold py-2 rounded-xl text-center animate-pulse border border-purple-200 mb-4">
-        🪄 Full Reveal Aktif: {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, "0")}
+      <div className="w-full bg-purple-100 text-purple-700 font-bold py-2 rounded-xl text-center animate-pulse border border-purple-200 mb-4 flex items-center justify-center gap-2">
+        <span>🪄 Full Reveal Aktif:</span>
+        <span className="font-mono">{Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, "0")}</span>
       </div>
     );
   }
@@ -52,9 +51,9 @@ export default function RevealButton({ onRevealActive }: { onRevealActive: (isAc
     return (
       <button
         onClick={handleUseReveal}
-        className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-2 rounded-xl shadow-md transition active:scale-95 mb-4"
+        className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 rounded-xl shadow-md transition active:scale-95 mb-4 flex items-center justify-center gap-2"
       >
-        🪄 Gunakan Full Reveal (Tersisa: {inventory.reveal})
+        <span>🪄</span> Gunakan Full Reveal (Tersisa: {inventory.reveal})
       </button>
     );
   }

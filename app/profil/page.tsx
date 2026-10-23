@@ -8,6 +8,7 @@ import { ACHIEVEMENTS_KANJI } from "@/data/achievements-kanji";
 import { getMissionsState } from "@/utils/missionEngine";
 import { getStreakData } from "@/utils/streakEngine";
 import AppLayout from "@/components/AppLayout";
+import { supabase } from "@/utils/supabase";
 
 function getTitle(mastered: number) {
   if (mastered >= 462) return { name: "Kanji Grandmaster", subtitle: "Ultimate Achievement", color: "from-yellow-400 to-amber-600", emoji: "👑" };
@@ -42,6 +43,8 @@ export default function ProfilPage() {
   const [sakuraCoins, setSakuraCoins] = useState(0);
   const [equipped, setEquipped] = useState<Record<string, string>>({});
   const [streak, setStreak] = useState<any>(null);
+  
+  const [friendsList, setFriendsList] = useState<any[]>([]);
 
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState(profile);
@@ -85,6 +88,31 @@ export default function ProfilPage() {
 
       fetch("/api/categories/semua/kanji").then(res => res.json()).then(data => setKanjiList(data));
       fetch("/api/kotoba/semua").then(res => res.json()).then(data => setKotobaList(data));
+
+      // Ambil Daftar Teman (Hanya yang accepted)
+      const fetchFriends = async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data: friendsData } = await supabase
+          .from('friends')
+          .select('user_id, friend_id')
+          .eq('status', 'accepted')
+          .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`);
+
+        if (friendsData && friendsData.length > 0) {
+          const friendIds = friendsData.map(f => f.user_id === user.id ? f.friend_id : f.user_id);
+          const uniqueFriendIds = Array.from(new Set(friendIds)); // Hilangkan duplikat
+
+          const { data: profilesData } = await supabase
+            .from('profiles')
+            .select('id, username, avatar_url, total_exp')
+            .in('id', uniqueFriendIds);
+            
+          if (profilesData) setFriendsList(profilesData);
+        }
+      };
+      fetchFriends();
         
     } catch (e) {}
   }, []);
@@ -261,7 +289,6 @@ export default function ProfilPage() {
                     </div>
                   </div>
 
-                  {/* 🆕 Tombol Ganti Password */}
                   <button 
                     onClick={() => window.location.href = '/update-password'} 
                     className="text-sm text-blue-600 font-bold hover:underline flex items-center justify-center gap-1 mx-auto"
@@ -418,6 +445,34 @@ export default function ProfilPage() {
           ) : (
             <div className="col-span-full text-center py-8 text-slate-400 bg-slate-50 rounded-2xl border border-slate-200 border-dashed text-sm">
               Belum ada kanji favorit. Klik "Edit Profil" untuk memilih.
+            </div>
+          )}
+        </div>
+
+        {/* Daftar Teman */}
+        <h2 className="text-xl sm:text-2xl font-bold text-slate-800 mb-4">👥 Daftar Teman ({friendsList.length})</h2>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-10">
+          {friendsList.length > 0 ? (
+            friendsList.map((friend) => (
+              <Link href={`/user/${friend.id}`} key={friend.id} className="bg-white border border-slate-200 rounded-2xl p-4 text-center shadow-sm hover:shadow-md transition group">
+                <div className="w-16 h-16 mx-auto rounded-full bg-emerald-50 border-2 border-white shadow-inner flex items-center justify-center text-xl font-bold text-emerald-500 overflow-hidden mb-2">
+                  {friend.avatar_url ? (
+                    <img src={friend.avatar_url} className="w-full h-full object-cover" />
+                  ) : (
+                    friend.username?.charAt(0).toUpperCase()
+                  )}
+                </div>
+                <div className="font-bold text-slate-800 text-sm truncate group-hover:text-blue-600 transition">
+                  {friend.username}
+                </div>
+                <div className="text-xs text-slate-500 mt-1">
+                  Lv. {Math.floor(Math.sqrt((friend.total_exp || 0) / 50)) + 1}
+                </div>
+              </Link>
+            ))
+          ) : (
+            <div className="col-span-full text-center py-8 text-slate-400 bg-slate-50 rounded-2xl border border-slate-200 border-dashed text-sm">
+              Belum ada teman. Yuk cari teman baru!
             </div>
           )}
         </div>

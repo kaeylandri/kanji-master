@@ -7,6 +7,8 @@ import Link from "next/link";
 import { triggerFireAnimationIfNewDay } from "@/utils/streakEngine";
 import { checkKanjiAchievements } from "@/utils/checkAchievements";
 import { addMissionProgress } from "@/utils/missionEngine";
+import { getInventory, useItem } from "@/utils/luckyEngine";
+import { triggerToast } from "@/utils/toast";
 
 type Kanji = {
   id: number;
@@ -44,6 +46,11 @@ function LatihanContent() {
 
   const [hintsLeft, setHintsLeft] = useState(3);
   const [wasHinted, setWasHinted] = useState(false);
+  
+  // 🆕 State Item & Reveal
+  const [inventory, setInventory] = useState<any>({});
+  const [revealActive, setRevealActive] = useState(false);
+  const [revealTimeLeft, setRevealTimeLeft] = useState(0);
 
   useEffect(() => {
     if (!slug) return;
@@ -59,6 +66,9 @@ function LatihanContent() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
+
+    setInventory(getInventory());
+    window.addEventListener("inventoryUpdated", () => setInventory(getInventory()));
   }, [slug, isRandomMode]);
 
   useEffect(() => {
@@ -69,6 +79,38 @@ function LatihanContent() {
     return () => clearInterval(interval);
   }, [isRunning]);
 
+  // Timer Reveal
+  useEffect(() => {
+    if (!revealActive) return;
+    if (revealTimeLeft <= 0) {
+      setRevealActive(false);
+      return;
+    }
+    const timer = setInterval(() => setRevealTimeLeft(prev => prev - 1), 1000);
+    return () => clearInterval(timer);
+  }, [revealActive, revealTimeLeft]);
+
+  const handleUseHint = () => {
+    if (useItem("hint")) {
+      setHintsLeft(prev => prev + 1);
+      setInventory(getInventory());
+      triggerToast("Berhasil menambah jatah intip! 💡", "success");
+    } else {
+      triggerToast("Kamu tidak punya item Intip Jawaban!", "error");
+    }
+  };
+
+  const handleUseReveal = () => {
+    if (useItem("reveal")) {
+      setRevealActive(true);
+      setRevealTimeLeft(170);
+      setInventory(getInventory());
+      triggerToast("🪄 Full Reveal Aktif selama 2:50!", "success");
+    } else {
+      triggerToast("Kamu tidak punya item Full Reveal!", "error");
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-blue-100">
@@ -77,7 +119,6 @@ function LatihanContent() {
     );
   }
 
-  // 🆕 PENGAMAN: Jika data latihan kosong (tidak crash)
   if (kanjiList.length === 0) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 to-blue-100 p-6 text-center">
@@ -182,6 +223,7 @@ function LatihanContent() {
                 setIsRunning(true);
                 setHintsLeft(3);
                 setWasHinted(false);
+                setRevealActive(false);
               }}
               className="w-full bg-gradient-to-r from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800 text-white py-3 rounded-xl font-bold shadow-md transition active:scale-95"
             >
@@ -318,6 +360,30 @@ function LatihanContent() {
           )}
         </div>
 
+        {/* 🆕 Panel Item Bantuan */}
+        <div className="flex justify-center gap-3 mb-4">
+          <button 
+            onClick={handleUseHint}
+            disabled={inventory.hint === 0}
+            className="flex items-center gap-2 bg-yellow-100 hover:bg-yellow-200 text-yellow-700 px-4 py-2 rounded-full font-bold text-sm transition disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+          >
+            💡 Intip ({inventory.hint || 0})
+          </button>
+          <button 
+            onClick={handleUseReveal}
+            disabled={inventory.reveal === 0 || revealActive}
+            className="flex items-center gap-2 bg-purple-100 hover:bg-purple-200 text-purple-700 px-4 py-2 rounded-full font-bold text-sm transition disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+          >
+            🪄 Reveal ({inventory.reveal || 0})
+          </button>
+        </div>
+
+        {revealActive && (
+          <div className="w-full bg-purple-100 text-purple-700 font-bold py-2 rounded-xl text-center animate-pulse mb-4 border border-purple-200">
+            🪄 Full Reveal Aktif: {Math.floor(revealTimeLeft / 60)}:{(revealTimeLeft % 60).toString().padStart(2, '0')}
+          </div>
+        )}
+
         <div className="mb-6">
           <div className="flex justify-between text-xs text-blue-700 mb-2">
             <span className="font-semibold">Kartu {index + 1} dari {kanjiList.length}</span>
@@ -336,6 +402,11 @@ function LatihanContent() {
                 <div className="absolute bottom-3 right-3 text-2xl opacity-30">🌸</div>
                 <div className="absolute top-3 right-3 text-xs text-blue-400 font-bold">{index + 1}/{kanjiList.length}</div>
                 <div className="text-9xl font-bold text-blue-900 select-none leading-none">{current.character}</div>
+                {revealActive && (
+                  <div className="absolute bottom-6 text-xl text-purple-600 font-bold animate-in fade-in">
+                    {current.hiragana} — {current.meaning}
+                  </div>
+                )}
               </div>
 
               <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-blue-700 rounded-3xl shadow-2xl flex flex-col items-center justify-center gap-2 p-6 [transform:rotateY(180deg)] [backface-visibility:hidden] text-white">

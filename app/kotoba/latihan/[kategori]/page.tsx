@@ -1,3 +1,4 @@
+// app/kotoba/latihan/[kategori]/page.tsx
 "use client";
 
 import { useEffect, useState, Suspense } from "react";
@@ -6,7 +7,8 @@ import Link from "next/link";
 import { triggerFireAnimationIfNewDay } from "@/utils/streakEngine";
 import { addMissionProgress } from "@/utils/missionEngine";
 import { checkKotobaAchievements } from "@/utils/checkAchievements";
-import RevealButton from "@/components/RevealButton"; // 🆕 Import Full Reveal
+import { getInventory, useItem } from "@/utils/luckyEngine";
+import { triggerToast } from "@/utils/toast";
 
 type Kotoba = {
   id: number;
@@ -59,9 +61,11 @@ function LatihanKotobaContent() {
 
   const [hintsLeft, setHintsLeft] = useState(3);
   const [wasHinted, setWasHinted] = useState(false);
-
-  // 🆕 State Full Reveal
+  
+  // 🆕 State Item & Reveal
+  const [inventory, setInventory] = useState<any>({});
   const [revealActive, setRevealActive] = useState(false);
+  const [revealTimeLeft, setRevealTimeLeft] = useState(0);
 
   useEffect(() => {
     if (!kategori) return;
@@ -75,6 +79,9 @@ function LatihanKotobaContent() {
           setKotobaList(data);
         }
       });
+
+    setInventory(getInventory());
+    window.addEventListener("inventoryUpdated", () => setInventory(getInventory()));
   }, [kategori, isRandomMode]);
 
   useEffect(() => {
@@ -84,6 +91,38 @@ function LatihanKotobaContent() {
     }, 1000);
     return () => clearInterval(interval);
   }, [isRunning]);
+
+  // Timer Reveal
+  useEffect(() => {
+    if (!revealActive) return;
+    if (revealTimeLeft <= 0) {
+      setRevealActive(false);
+      return;
+    }
+    const timer = setInterval(() => setRevealTimeLeft(prev => prev - 1), 1000);
+    return () => clearInterval(timer);
+  }, [revealActive, revealTimeLeft]);
+
+  const handleUseHint = () => {
+    if (useItem("hint")) {
+      setHintsLeft(prev => prev + 1);
+      setInventory(getInventory());
+      triggerToast("Berhasil menambah jatah intip! 💡", "success");
+    } else {
+      triggerToast("Kamu tidak punya item Intip Jawaban!", "error");
+    }
+  };
+
+  const handleUseReveal = () => {
+    if (useItem("reveal")) {
+      setRevealActive(true);
+      setRevealTimeLeft(170);
+      setInventory(getInventory());
+      triggerToast("🪄 Full Reveal Aktif selama 2:50!", "success");
+    } else {
+      triggerToast("Kamu tidak punya item Full Reveal!", "error");
+    }
+  };
 
   if (!kotobaList.length) {
     return (
@@ -129,7 +168,7 @@ function LatihanKotobaContent() {
               onClick={() => {
                 if (isRandomMode) window.location.reload();
                 else {
-                  setIndex(0); setInput(""); setFlipped(false); setStats({ correct: 0, wrong: 0 }); setFinished(false); setElapsed(0); setIsRunning(true); setHintsLeft(3); setWasHinted(false);
+                  setIndex(0); setInput(""); setFlipped(false); setStats({ correct: 0, wrong: 0 }); setFinished(false); setElapsed(0); setIsRunning(true); setHintsLeft(3); setWasHinted(false); setRevealActive(false);
                 }
               }}
               className="w-full bg-gradient-to-r from-emerald-500 to-teal-700 text-white py-3 rounded-xl font-bold shadow-md transition active:scale-95"
@@ -234,8 +273,29 @@ function LatihanKotobaContent() {
           </div>
         </header>
 
-        {/* 🆕 Tombol Full Reveal */}
-        <RevealButton onRevealActive={setRevealActive} />
+        {/* 🆕 Panel Item Bantuan */}
+        <div className="flex justify-center gap-3 mb-4">
+          <button 
+            onClick={handleUseHint}
+            disabled={inventory.hint === 0}
+            className="flex items-center gap-2 bg-yellow-100 hover:bg-yellow-200 text-yellow-700 px-4 py-2 rounded-full font-bold text-sm transition disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+          >
+            💡 Intip ({inventory.hint || 0})
+          </button>
+          <button 
+            onClick={handleUseReveal}
+            disabled={inventory.reveal === 0 || revealActive}
+            className="flex items-center gap-2 bg-purple-100 hover:bg-purple-200 text-purple-700 px-4 py-2 rounded-full font-bold text-sm transition disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+          >
+            🪄 Reveal ({inventory.reveal || 0})
+          </button>
+        </div>
+
+        {revealActive && (
+          <div className="w-full bg-purple-100 text-purple-700 font-bold py-2 rounded-xl text-center animate-pulse mb-4 border border-purple-200">
+            🪄 Full Reveal Aktif: {Math.floor(revealTimeLeft / 60)}:{(revealTimeLeft % 60).toString().padStart(2, '0')}
+          </div>
+        )}
 
         <div className="text-center mb-4">
           {isRandomMode && (
@@ -263,19 +323,16 @@ function LatihanKotobaContent() {
         <div className="flex-1 flex flex-col items-center justify-center">
           <div className="relative w-full max-w-md h-60 [perspective:1200px]">
             <div className={`relative w-full h-full transition-transform duration-700 [transform-style:preserve-3d] ${flipped ? "[transform:rotateY(180deg)]" : ""}`}>
-              {/* Depan */}
               <div className="absolute inset-0 bg-white rounded-3xl shadow-2xl border-4 border-emerald-200 flex flex-col items-center justify-center [backface-visibility:hidden]">
                 <div className="select-none text-center">
                   {renderWithFurigana(current.word, current.reading)}
                 </div>
-                {/* 🆕 Tampilkan jawaban jika Reveal aktif */}
                 {revealActive && (
                   <div className="mt-4 text-xl text-purple-600 font-bold animate-in fade-in">
                     {current.reading} - {current.meaning}
                   </div>
                 )}
               </div>
-              {/* Belakang */}
               <div className="absolute inset-0 bg-gradient-to-br from-emerald-500 to-teal-700 rounded-3xl shadow-2xl flex flex-col items-center justify-center gap-2 p-6 [transform:rotateY(180deg)] [backface-visibility:hidden] text-white">
                 <div className="text-center">
                   <div className="text-xs text-white/70 uppercase tracking-wider mb-1">Cara Baca</div>
@@ -333,17 +390,10 @@ function LatihanKotobaContent() {
         </div>
 
         <div className="flex justify-between gap-3">
-         <button 
-            onClick={prev} 
-            disabled={index === 0} 
-            className="flex-1 py-2 bg-white border-2 border-emerald-200 text-emerald-700 rounded-xl font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-slate-50"
-          >
+         <button onClick={prev} disabled={index === 0} className="flex-1 py-2 bg-white border-2 border-emerald-200 text-emerald-700 rounded-xl font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-slate-50">
             ← Sebelumnya
           </button>
-          <button 
-            onClick={next} 
-            className="flex-1 py-2 bg-white border-2 border-emerald-200 text-emerald-700 rounded-xl font-semibold transition"
-          >
+          <button onClick={next} className="flex-1 py-2 bg-white border-2 border-emerald-200 text-emerald-700 rounded-xl font-semibold transition">
             Selanjutnya →
           </button>
         </div>

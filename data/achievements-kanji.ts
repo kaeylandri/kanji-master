@@ -50,4 +50,13 @@ export const ACHIEVEMENTS_KANJI: AchievementKanji[] = [
   { id: "prog_300", type: "progress", targetCount: 300, name: "漢字の侍 (Kanji no Samurai)", desc: "Menghafal 300 kanji unik (62%).", icon: "⚔️", color: "bg-purple-100 text-purple-800" },
   { id: "prog_400", type: "progress", targetCount: 400, name: "漢字マスター (Kanji Masutā)", desc: "Menghafal 400 kanji unik (82%).", icon: "🥋", color: "bg-rose-100 text-rose-800" },
   { id: "prog_486", type: "progress", targetCount: 486, name: "漢字の伝説 (Kanji no Densetsu)", desc: "Menguasai semua 486 kanji.", icon: "👑", color: "bg-gradient-to-r from-yellow-300 to-amber-500 text-white" },
+
+  { id: "social_5", type: "mode", name: "友達の輪 (Tomodachi no Wa)", desc: "Punya 5 teman di Kanji Master.", icon: "🤝", color: "bg-teal-100 text-teal-800" },
+  { id: "social_10", type: "mode", name: "社交家 (Shakōka)", desc: "Punya 10 teman di Kanji Master.", icon: "👥", color: "bg-blue-100 text-blue-800" },
+  { id: "social_20", type: "mode", name: "人気者 (Ninkimono)", desc: "Punya 20 teman di Kanji Master.", icon: "🌟", color: "bg-yellow-100 text-yellow-800" },
+  { id: "social_30", type: "mode", name: "リーダー (Rīdā)", desc: "Punya 30 teman di Kanji Master.", icon: "👑", color: "bg-orange-100 text-orange-800" },
+  { id: "social_40", type: "mode", name: "カリスマ (Karishuma)", desc: "Punya 40 teman di Kanji Master.", icon: "🔥", color: "bg-red-100 text-red-800" },
+  { id: "social_50", type: "mode", name: "伝説の友達 (Densetsu no Tomodachi)", desc: "Punya 50 teman di Kanji Master.", icon: "🏆", color: "bg-purple-100 text-purple-800" },
+  { id: "the_end", type: "progress", targetCount: 486, name: "ジ・エンド？ (Ji Endo?)", desc: "Hafal semua 486 Kanji, 500 Kotoba, dan dapat nilai 100 di semua Shiken.", icon: "🌌", color: "bg-gradient-to-r from-slate-800 to-black text-white" },
 ];
+

@@ -1,10 +1,12 @@
+// app/survival/page.tsx
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { triggerFireAnimationIfNewDay } from "@/utils/streakEngine";
 import { checkKanjiAchievements } from "@/utils/checkAchievements";
-import RevealButton from "@/components/RevealButton"; // 🆕
+import { getInventory, useItem } from "@/utils/luckyEngine";
+import { triggerToast } from "@/utils/toast";
 
 type Kanji = {
   id: number;
@@ -34,8 +36,10 @@ export default function SurvivalPage() {
   const [shake, setShake] = useState(false);
   const [highScore, setHighScore] = useState(0);
 
-  // 🆕 State Full Reveal
+  // 🆕 State Item & Reveal
+  const [inventory, setInventory] = useState<any>({});
   const [revealActive, setRevealActive] = useState(false);
+  const [revealTimeLeft, setRevealTimeLeft] = useState(0);
 
   const audioCtxRef = useRef<AudioContext | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -43,7 +47,32 @@ export default function SurvivalPage() {
   useEffect(() => {
     const saved = localStorage.getItem("survivalHighScore");
     if (saved) setHighScore(parseInt(saved, 10));
+    
+    setInventory(getInventory());
+    window.addEventListener("inventoryUpdated", () => setInventory(getInventory()));
   }, []);
+
+  // Timer Reveal
+  useEffect(() => {
+    if (!revealActive) return;
+    if (revealTimeLeft <= 0) {
+      setRevealActive(false);
+      return;
+    }
+    const timer = setInterval(() => setRevealTimeLeft(prev => prev - 1), 1000);
+    return () => clearInterval(timer);
+  }, [revealActive, revealTimeLeft]);
+
+  const handleUseReveal = () => {
+    if (useItem("reveal")) {
+      setRevealActive(true);
+      setRevealTimeLeft(170);
+      setInventory(getInventory());
+      triggerToast("🪄 Full Reveal Aktif selama 2:50!", "success");
+    } else {
+      triggerToast("Kamu tidak punya item Full Reveal!", "error");
+    }
+  };
 
   const playTickSound = useCallback(() => {
     if (!audioCtxRef.current) return;
@@ -85,6 +114,7 @@ export default function SurvivalPage() {
       setTimeLeft(120);
       setGameState("playing");
       setWrongNotif(false);
+      setRevealActive(false);
     } catch (error) {
       console.error("Gagal memuat kanji", error);
     }
@@ -273,7 +303,18 @@ export default function SurvivalPage() {
     <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4 sm:p-6 select-none">
       {/* 🆕 Tombol Full Reveal */}
       <div className="w-full max-w-sm mb-4">
-        <RevealButton onRevealActive={setRevealActive} />
+        <button 
+          onClick={handleUseReveal}
+          disabled={inventory.reveal === 0 || revealActive}
+          className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 rounded-xl shadow-lg transition active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
+        >
+          🪄 Gunakan Full Reveal (Tersisa: {inventory.reveal || 0})
+        </button>
+        {revealActive && (
+          <div className="w-full bg-purple-900/50 border border-purple-500/50 text-purple-300 font-bold py-2 rounded-xl text-center animate-pulse mt-2">
+            🪄 Full Reveal Aktif: {Math.floor(revealTimeLeft / 60)}:{(revealTimeLeft % 60).toString().padStart(2, '0')}
+          </div>
+        )}
       </div>
 
       <div className="w-full max-w-lg flex justify-between items-center mb-8">

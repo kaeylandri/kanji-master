@@ -6,6 +6,9 @@ import { useRouter, usePathname } from "next/navigation";
 import { supabase } from "@/utils/supabase";
 import { syncDataToDatabase } from "@/utils/syncEngine";
 import { checkStreakExpiry } from "@/utils/luckyEngine";
+import { getMissionsState } from "@/utils/missionEngine"; // 🆕
+import { getInventory } from "@/utils/luckyEngine"; // 🆕
+import { triggerToast } from "@/utils/toast"; // 🆕
 
 // Pisahkan logika ke komponen internal
 function AuthGuardContent({ children }: { children: React.ReactNode }) {
@@ -13,11 +16,57 @@ function AuthGuardContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [isLoading, setIsLoading] = useState(true);
 
+  // 🆕 Fungsi untuk menjemput hadiah dari teman
+  const claimGifts = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    // Ambil semua hadiah yang belum diklaim
+    const { data: gifts } = await supabase
+      .from('gifts')
+      .select('*')
+      .eq('receiver_id', user.id)
+      .eq('is_claimed', false);
+
+    if (gifts && gifts.length > 0) {
+      let totalCoins = 0;
+      let totalFreeze = 0;
+
+      for (const gift of gifts) {
+        if (gift.item_type === 'coins') totalCoins += gift.amount;
+        if (gift.item_type === 'freeze') totalFreeze += gift.amount;
+
+        // Tandai sudah diklaim
+        await supabase.from('gifts').update({ is_claimed: true }).eq('id', gift.id);
+      }
+
+      // Masukkan ke localStorage
+      if (totalCoins > 0) {
+        const ms = getMissionsState();
+        if (ms) {
+          ms.coins += totalCoins;
+          localStorage.setItem("kanjiMaster.missions.v1", JSON.stringify(ms));
+          window.dispatchEvent(new Event("missionUpdated"));
+        }
+      }
+      if (totalFreeze > 0) {
+        const inv = getInventory();
+        if (inv) {
+          inv.freeze += totalFreeze;
+          localStorage.setItem("kanjiMaster.inventory.v1", JSON.stringify(inv));
+          window.dispatchEvent(new Event("inventoryUpdated"));
+        }
+      }
+
+      triggerToast(`Kamu menerima hadiah: 🌸 ${totalCoins} Koin & ❄️ ${totalFreeze} Freeze!`, "success");
+    }
+  };
+
   useEffect(() => {
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       
-      // 🆕 Tambahkan forgot-password dan update-password sebagai halaman publik
+      // Tambahkan forgot-password dan update-password sebagai halaman publik
       const isAuthPage = 
         pathname === "/login" || 
         pathname === "/register" || 
@@ -37,6 +86,7 @@ function AuthGuardContent({ children }: { children: React.ReactNode }) {
         if (session) {
           checkStreakExpiry();
           syncDataToDatabase();
+          claimGifts(); // 🆕 Panggil fungsi klaim hadiah
         }
         setIsLoading(false);
       }
@@ -49,6 +99,7 @@ function AuthGuardContent({ children }: { children: React.ReactNode }) {
       if (event === "SIGNED_IN") {
         checkStreakExpiry();
         syncDataToDatabase();
+        claimGifts(); // 🆕 Panggil juga saat login
       }
     });
 

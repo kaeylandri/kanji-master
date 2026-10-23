@@ -17,7 +17,7 @@ export default function LandingPage() {
 
   return (
     <AppLayout>
-      <div className="max-w-3xl mx-auto relative z-10">
+      <div className="max-w-4xl mx-auto relative z-10">
         
         {/* Tombol Profil (Kanan Atas) */}
         <div className="flex justify-end mb-8">
@@ -47,8 +47,8 @@ export default function LandingPage() {
           </p>
         </header>
 
-        {/* Tombol Misi & Shop */}
-        <div className="grid md:grid-cols-2 gap-4 mb-8">
+        {/* Tombol Misi, Shop, dan Shiken */}
+        <div className="grid md:grid-cols-3 gap-4 mb-8">
           <Link 
             href="/missions" 
             className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm hover:shadow-md hover:border-orange-300 transition group flex items-center gap-4"
@@ -68,6 +68,18 @@ export default function LandingPage() {
             <div>
               <div className="font-bold text-slate-800 text-lg">Sakura Shop</div>
               <div className="text-sm text-slate-500">Tukar koin dengan kosmetik.</div>
+            </div>
+          </Link>
+
+          {/* Tombol Shiken (Ujian) */}
+          <Link 
+            href="/shiken" 
+            className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm hover:shadow-md hover:border-indigo-300 transition group flex items-center gap-4"
+          >
+            <div className="w-14 h-14 bg-indigo-50 rounded-xl flex items-center justify-center text-3xl group-hover:scale-110 transition">📝</div>
+            <div>
+              <div className="font-bold text-slate-800 text-lg">Shiken (Ujian)</div>
+              <div className="text-sm text-slate-500">Uji kemampuanmu di sini.</div>
             </div>
           </Link>
         </div>

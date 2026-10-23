@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/utils/supabase";
-import AppLayout from "@/components/AppLayout"; // Cukup AppLayout saja
+import AppLayout from "@/components/AppLayout";
 import { triggerToast } from "@/utils/toast";
 import { ACHIEVEMENTS_KANJI } from "@/data/achievements-kanji";
 import { ACHIEVEMENTS_KOTOBA } from "@/data/achievements";
@@ -28,15 +28,16 @@ export default function UserProfilePage() {
   const [loadingAction, setLoadingAction] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(true);
   
-  // State Progress & Achievement
   const [masteredKanji, setMasteredKanji] = useState<number[]>([]);
   const [masteredKotoba, setMasteredKotoba] = useState<number[]>([]);
   const [uniqueKotobaAnswered, setUniqueKotobaAnswered] = useState<number[]>([]);
   const [unlockedAchievements, setUnlockedAchievements] = useState<string[]>([]);
   
-  // State untuk kalkulasi kategori
   const [allKanji, setAllKanji] = useState<any[]>([]);
   const [allKotoba, setAllKotoba] = useState<any[]>([]);
+
+  // 🆕 State untuk Daftar Teman
+  const [targetFriends, setTargetFriends] = useState<any[]>([]);
 
   useEffect(() => {
     const initPage = async () => {
@@ -44,11 +45,11 @@ export default function UserProfilePage() {
       const { data: { user: authUser } } = await supabase.auth.getUser();
       if (authUser) setMyId(authUser.id);
 
-      // 1. Ambil Profil Target
+      // 1. Profil Target
       const { data: profileData } = await supabase.from('profiles').select('*').eq('id', params.id).single();
       if (profileData) setUser(profileData);
 
-      // 2. Ambil Progress Hafalan Target
+      // 2. Progress Hafalan Target
       const { data: progressData } = await supabase.from('user_progress').select('*').eq('user_id', params.id);
       if (progressData) {
         setMasteredKanji(progressData.filter(p => p.item_type === 'kanji' && p.is_mastered).map(p => p.item_id));
@@ -56,11 +57,11 @@ export default function UserProfilePage() {
         setUniqueKotobaAnswered(progressData.filter(p => p.item_type === 'kotoba').map(p => p.item_id));
       }
 
-      // 3. Ambil Data Achievement yang sudah dibuka
+      // 3. Achievement
       const { data: achData } = await supabase.from('user_achievements').select('*').eq('user_id', params.id);
       if (achData) setUnlockedAchievements(achData.map(a => a.achievement_id));
 
-      // 4. Ambil Data Master Kanji & Kotoba
+      // 4. Data Master
       const [kanjiRes, kotobaRes] = await Promise.all([
         fetch("/api/categories/semua/kanji"),
         fetch("/api/kotoba/semua")
@@ -68,7 +69,7 @@ export default function UserProfilePage() {
       setAllKanji(await kanjiRes.json());
       setAllKotoba(await kotobaRes.json());
 
-      // 5. Cek Status Pertemanan
+      // 5. Status Pertemanan (dengan saya)
       if (authUser && profileData) {
         const { data: friendData } = await supabase
           .from('friends')
@@ -76,6 +77,29 @@ export default function UserProfilePage() {
           .or(`and(user_id.eq.${authUser.id},friend_id.eq.${params.id}),and(user_id.eq.${params.id},friend_id.eq.${authUser.id})`)
           .maybeSingle();
         if (friendData) setFriendStatus(friendData.status);
+      }
+
+      // 🆕 6. Ambil Daftar Teman Target (Hanya yang sudah accepted)
+      const { data: targetFriendData } = await supabase
+        .from('friends')
+        .select('user_id, friend_id')
+        .eq('status', 'accepted')
+        .or(`user_id.eq.${params.id},friend_id.eq.${params.id}`);
+
+      if (targetFriendData && targetFriendData.length > 0) {
+        const friendIds = targetFriendData.map(f => 
+          f.user_id === params.id ? f.friend_id : f.user_id
+        );
+        const uniqueFriendIds = Array.from(new Set(friendIds));
+
+        const { data: profilesData } = await supabase
+          .from('profiles')
+          .select('id, username, avatar_url, total_exp')
+          .in('id', uniqueFriendIds);
+          
+        if (profilesData) setTargetFriends(profilesData);
+      } else {
+        setTargetFriends([]);
       }
 
       setIsLoadingData(false);
@@ -238,13 +262,37 @@ export default function UserProfilePage() {
           </div>
         </div>
 
+        {/* 🆕 Daftar Teman */}
+        <div className="mb-10">
+          <h2 className="text-xl sm:text-2xl font-bold text-slate-800 mb-4">👥 Daftar Teman ({targetFriends.length})</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+            {targetFriends.length > 0 ? (
+              targetFriends.map((friend) => (
+                <Link href={`/user/${friend.id}`} key={friend.id} className="bg-white border border-slate-200 rounded-2xl p-4 text-center shadow-sm hover:shadow-md transition group">
+                  <div className="w-16 h-16 mx-auto rounded-full bg-emerald-50 border-2 border-white shadow-inner flex items-center justify-center text-xl font-bold text-emerald-500 overflow-hidden mb-2">
+                    {friend.avatar_url ? (
+                      <img src={friend.avatar_url} className="w-full h-full object-cover" />
+                    ) : (
+                      friend.username?.charAt(0).toUpperCase()
+                    )}
+                  </div>
+                  <div className="font-bold text-slate-800 text-sm truncate group-hover:text-blue-600 transition">{friend.username}</div>
+                  <div className="text-xs text-slate-500 mt-1">Lv. {Math.floor(Math.sqrt((friend.total_exp || 0) / 50)) + 1}</div>
+                </Link>
+              ))
+            ) : (
+              <div className="col-span-full text-center py-8 text-slate-400 bg-slate-50 rounded-2xl border border-slate-200 border-dashed text-sm">
+                Pengguna ini belum memiliki teman.
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* Pencapaian Kotoba */}
         <div className="mb-10">
           <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-2 sm:gap-0">
             <h2 className="text-xl sm:text-2xl font-bold text-slate-800">🏅 Pencapaian Kotoba</h2>
-            <Link href={`/profil/achievements?userId=${user.id}`} className="text-xs sm:text-sm font-bold text-blue-500 hover:text-blue-600 transition flex items-center gap-1 bg-blue-50 px-3 py-1.5 sm:px-4 sm:py-2 rounded-full border border-blue-100">
-              Lihat Semua →
-            </Link>
+            <Link href={`/profil/achievements?userId=${user.id}`} className="text-xs sm:text-sm font-bold text-blue-500 hover:text-blue-600 transition flex items-center gap-1 bg-blue-50 px-3 py-1.5 sm:px-4 sm:py-2 rounded-full border border-blue-100">Lihat Semua →</Link>
           </div>
           <div className="space-y-3">
             {ACHIEVEMENTS_KOTOBA.slice(0, 3).map((ach) => {
@@ -252,17 +300,13 @@ export default function UserProfilePage() {
               const isUnlocked = percent === 100;
               return (
                 <div key={ach.id} className={`rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row items-center sm:items-start gap-3 sm:gap-5 border-2 ${isUnlocked ? "bg-white border-emerald-200 shadow-sm" : "bg-slate-50 border-slate-200"} text-center sm:text-left`}>
-                  <div className={`shrink-0 w-12 h-12 sm:w-16 sm:h-16 flex items-center justify-center text-2xl sm:text-3xl rounded-xl sm:rounded-2xl border ${isUnlocked ? `${ach.color} border-white/20 shadow-inner` : "bg-slate-100 border-slate-200 text-slate-300"}`}>
-                    {isUnlocked ? ach.icon : "🔒"}
-                  </div>
+                  <div className={`shrink-0 w-12 h-12 sm:w-16 sm:h-16 flex items-center justify-center text-2xl sm:text-3xl rounded-xl sm:rounded-2xl border ${isUnlocked ? `${ach.color} border-white/20 shadow-inner` : "bg-slate-100 border-slate-200 text-slate-300"}`}>{isUnlocked ? ach.icon : "🔒"}</div>
                   <div className="flex-1 w-full">
                     <div className="flex flex-col sm:flex-row justify-between items-center sm:items-start mb-1">
                       <h3 className={`font-bold text-base sm:text-lg ${isUnlocked ? "text-slate-800" : "text-slate-500"}`}>{ach.name}</h3>
                       <span className={`text-sm font-bold ${isUnlocked ? "text-emerald-500" : "text-slate-400"}`}>{Math.round(percent)}%</span>
                     </div>
-                    <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden flex border border-slate-200 mt-2">
-                      <div className={`h-full ${isUnlocked ? "bg-yellow-400" : "bg-slate-300"}`} style={{ width: `${percent}%` }} />
-                    </div>
+                    <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden flex border border-slate-200 mt-2"><div className={`h-full ${isUnlocked ? "bg-yellow-400" : "bg-slate-300"}`} style={{ width: `${percent}%` }} /></div>
                     <p className="text-[10px] text-slate-400 mt-1">{current} dari {target} kotoba dijawab benar.</p>
                   </div>
                 </div>
@@ -275,9 +319,7 @@ export default function UserProfilePage() {
         <div className="mb-8">
           <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-2 sm:gap-0">
             <h2 className="text-xl sm:text-2xl font-bold text-slate-800">🏅 Pencapaian Kanji</h2>
-            <Link href={`/profil/achievements-kanji?userId=${user.id}`} className="text-xs sm:text-sm font-bold text-blue-500 hover:text-blue-600 transition flex items-center gap-1 bg-blue-50 px-3 py-1.5 sm:px-4 sm:py-2 rounded-full border border-blue-100">
-              Lihat Semua →
-            </Link>
+            <Link href={`/profil/achievements-kanji?userId=${user.id}`} className="text-xs sm:text-sm font-bold text-blue-500 hover:text-blue-600 transition flex items-center gap-1 bg-blue-50 px-3 py-1.5 sm:px-4 sm:py-2 rounded-full border border-blue-100">Lihat Semua →</Link>
           </div>
           <div className="space-y-3">
             {ACHIEVEMENTS_KANJI.slice(0, 3).map((ach) => {
@@ -285,17 +327,13 @@ export default function UserProfilePage() {
               const isUnlocked = percent === 100;
               return (
                 <div key={ach.id} className={`rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row items-center sm:items-start gap-3 sm:gap-5 border-2 ${isUnlocked ? "bg-white border-emerald-200 shadow-sm" : "bg-slate-50 border-slate-200"} text-center sm:text-left`}>
-                  <div className={`shrink-0 w-12 h-12 sm:w-16 sm:h-16 flex items-center justify-center text-2xl sm:text-3xl rounded-xl sm:rounded-2xl border ${isUnlocked ? `${ach.color} border-white/20 shadow-inner` : "bg-slate-100 border-slate-200 text-slate-300"}`}>
-                    {isUnlocked ? ach.icon : "🔒"}
-                  </div>
+                  <div className={`shrink-0 w-12 h-12 sm:w-16 sm:h-16 flex items-center justify-center text-2xl sm:text-3xl rounded-xl sm:rounded-2xl border ${isUnlocked ? `${ach.color} border-white/20 shadow-inner` : "bg-slate-100 border-slate-200 text-slate-300"}`}>{isUnlocked ? ach.icon : "🔒"}</div>
                   <div className="flex-1 w-full">
                     <div className="flex flex-col sm:flex-row justify-between items-center sm:items-start mb-1">
                       <h3 className={`font-bold text-base sm:text-lg ${isUnlocked ? "text-slate-800" : "text-slate-500"}`}>{ach.name}</h3>
                       <span className={`text-sm font-bold ${isUnlocked ? "text-emerald-500" : "text-slate-400"}`}>{Math.round(percent)}%</span>
                     </div>
-                    <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden flex border border-slate-200 mt-2">
-                      <div className={`h-full ${isUnlocked ? "bg-yellow-400" : "bg-slate-300"}`} style={{ width: `${percent}%` }} />
-                    </div>
+                    <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden flex border border-slate-200 mt-2"><div className={`h-full ${isUnlocked ? "bg-yellow-400" : "bg-slate-300"}`} style={{ width: `${percent}%` }} /></div>
                     <p className="text-[10px] text-slate-400 mt-1">{current} dari {target} kanji dihafal.</p>
                   </div>
                 </div>

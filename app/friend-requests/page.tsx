@@ -14,12 +14,12 @@ export default function FriendRequestsPage() {
     const { data: { user } } = await supabase.auth.getUser();
     
     if (user) {
-      // 1. Ambil data permintaan (tanpa join dulu untuk menghindari error RLS)
+      // 1. Ambil data permintaan (HANYA yang statusnya pending)
       const { data: friendsData, error: friendsError } = await supabase
         .from('friends')
         .select('id, status, user_id')
         .eq('friend_id', user.id)
-        .eq('status', 'pending');
+        .eq('status', 'pending'); // 🆕 Pastikan hanya mengambil yang pending
 
       if (friendsError) {
         console.error("Error ambil friends:", friendsError);
@@ -28,20 +28,15 @@ export default function FriendRequestsPage() {
       }
 
       if (friendsData && friendsData.length > 0) {
-        // 2. Ambil ID pengirim
         const senderIds = friendsData.map(f => f.user_id);
 
-        // 3. Ambil profil pengirim dari tabel profiles
-        const { data: profilesData, error: profilesError } = await supabase
+        // 2. Ambil profil pengirim
+        const { data: profilesData } = await supabase
           .from('profiles')
           .select('id, username, total_exp, avatar_url')
           .in('id', senderIds);
 
-        if (profilesError) {
-          console.error("Error ambil profiles:", profilesError);
-        }
-
-        // 4. Gabungkan data
+        // 3. Gabungkan data
         const combinedData = friendsData.map(req => {
           const profile = profilesData?.find(p => p.id === req.user_id);
           return {
@@ -63,6 +58,7 @@ export default function FriendRequestsPage() {
   }, []);
 
   const handleAction = async (requestId: number, action: 'accepted' | 'rejected') => {
+    // 1. Update status di database
     const { error } = await supabase
       .from('friends')
       .update({ status: action })
@@ -70,7 +66,9 @@ export default function FriendRequestsPage() {
 
     if (!error) {
       triggerToast(`Permintaan ${action === 'accepted' ? 'diterima' : 'ditolak'}!`, "success");
-      setRequests(requests.filter(r => r.id !== requestId));
+      
+      // 2. Hapus dari layar (filter out) agar langsung hilang tanpa refresh
+      setRequests(prev => prev.filter(r => r.id !== requestId));
     } else {
       triggerToast("Gagal memproses permintaan.", "error");
     }

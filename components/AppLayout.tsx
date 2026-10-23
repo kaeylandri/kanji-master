@@ -11,14 +11,16 @@ export default function AppLayout({ children, headerVariant = "light" }: { child
   return (
     <div className="min-h-screen bg-slate-50 flex">
       
-      {/* 🆕 Sidebar Responsif */}
+      {/* Sidebar Responsif */}
       <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
 
       {/* Konten Utama */}
       <div className="flex-1 lg:ml-64 flex flex-col min-h-screen w-full">
+        
         {/* Header dengan Tombol Hamburger di HP */}
         <div className="sticky top-0 z-40">
           <div className="bg-white border-b border-slate-200 flex items-center px-4 lg:px-8 h-20">
+            
             {/* Tombol Hamburger (Hanya muncul di Mobile/Tablet) */}
             <button 
               onClick={() => setIsSidebarOpen(true)}
@@ -29,9 +31,9 @@ export default function AppLayout({ children, headerVariant = "light" }: { child
               </svg>
             </button>
             
-            {/* Header Stats */}
+            {/* Header Stats (Tanpa isInsideLayout) */}
             <div className="flex-1">
-              <HeaderStats variant={headerVariant} isInsideLayout={true} />
+              <HeaderStats variant={headerVariant} />
             </div>
           </div>
         </div>
