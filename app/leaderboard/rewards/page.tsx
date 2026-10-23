@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/utils/supabase";
 import AppLayout from "@/components/AppLayout";
 import { triggerToast } from "@/utils/toast";
-import { getMissionsState } from "@/utils/missionEngine";
 import { useRouter } from "next/navigation";
 
 // Fungsi untuk mendapatkan identitas minggu (misal: 2026-W42)
@@ -70,6 +69,7 @@ export default function LeaderboardRewardsPage() {
     checkStatus();
   }, []);
 
+  // 🆕 handleClaim memanggil API Server
   const handleClaim = async () => {
     if (!myRank || !canClaim) return;
     const { data: { user } } = await supabase.auth.getUser();
@@ -82,31 +82,35 @@ export default function LeaderboardRewardsPage() {
     }
     if (!reward) return;
 
-    // 1. Simpan ke database (tandai sudah klaim)
-    const { error } = await supabase.from('leaderboard_rewards').insert({
-      user_id: user.id,
-      week_identifier: getWeekIdentifier(),
-      rank_claimed: myRank
-    });
+    try {
+      const res = await fetch("/api/rewards/claim-leaderboard", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user.id,
+          rank: myRank,
+          rewardExp: reward.exp,
+          rewardCoins: reward.coins,
+        }),
+      });
 
-    if (error) return triggerToast("Gagal klaim hadiah: " + error.message, "error");
+      const data = await res.json();
 
-    // 2. Tambahkan hadiah ke localStorage
-    const ms = getMissionsState();
-    if (ms) {
-      ms.exp += reward.exp;
-      ms.coins += reward.coins;
-      localStorage.setItem("kanjiMaster.missions.v1", JSON.stringify(ms));
+      if (!res.ok) {
+        return triggerToast(data.error || "Gagal klaim", "error");
+      }
+
+      triggerToast(`Hadiah Peringkat #${myRank} berhasil diklaim! 🎉`, "success");
+      setClaimedThisWeek(true);
+      
+      // Sinkronisasi ulang
       window.dispatchEvent(new Event("missionUpdated"));
-    }
-    // Freeze disimpan di inventory
-    const inv = JSON.parse(localStorage.getItem("kanjiMaster.inventory.v1") || '{"freeze":0,"hint":0,"reveal":0}');
-    inv.freeze += reward.freeze;
-    localStorage.setItem("kanjiMaster.inventory.v1", JSON.stringify(inv));
-    window.dispatchEvent(new Event("inventoryUpdated"));
+      window.dispatchEvent(new Event("inventoryUpdated"));
 
-    triggerToast(`Hadiah Peringkat #${myRank} berhasil diklaim! 🎉`, "success");
-    setClaimedThisWeek(true);
+    } catch (err) {
+      console.error(err);
+      triggerToast("Terjadi kesalahan jaringan.", "error");
+    }
   };
 
   return (

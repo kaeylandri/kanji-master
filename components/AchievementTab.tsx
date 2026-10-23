@@ -4,8 +4,6 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/utils/supabase";
 import { ACHIEVEMENTS_KANJI } from "@/data/achievements-kanji";
 import { ACHIEVEMENTS_KOTOBA } from "@/data/achievements";
-import { getMissionsState } from "@/utils/missionEngine";
-import { getInventory } from "@/utils/luckyEngine";
 import { triggerToast } from "@/utils/toast";
 
 // Hadiah default berdasarkan tipe achievement
@@ -42,45 +40,51 @@ export default function AchievementTab() {
     fetchClaimed();
   }, []);
 
+  // 🆕 handleClaim memanggil API Server
   const handleClaim = async (achId: string, type: string, isTheEnd: boolean = false) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
     const reward = isTheEnd ? REWARDS.the_end : REWARDS[type as keyof typeof REWARDS] || REWARDS.general;
 
-    // Simpan ke database
-    const { error } = await supabase.from('achievement_rewards').insert({
-      user_id: user.id,
-      achievement_id: achId
-    });
+    try {
+      const res = await fetch("/api/rewards/claim-achievement", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user.id,
+          achievementId: achId,
+          rewardExp: reward.exp,
+          rewardCoins: reward.coins,
+          rewardHint: reward.hint,
+          rewardFreeze: reward.freeze,
+          rewardReveal: reward.reveal,
+        }),
+      });
 
-    if (error) return triggerToast("Gagal klaim: " + error.message, "error");
+      const data = await res.json();
 
-    // Tambahkan ke localStorage (EXP & Koin)
-    const ms = getMissionsState();
-    if (ms) {
-      ms.exp += reward.exp;
-      ms.coins += reward.coins;
-      localStorage.setItem("kanjiMaster.missions.v1", JSON.stringify(ms));
+      if (!res.ok) {
+        return triggerToast(data.error || "Gagal klaim", "error");
+      }
+
+      // Susun pesan Toast
+      let toastMsg = `Hadiah diklaim! +${reward.exp} XP, +${reward.coins} 🌸`;
+      if (reward.hint > 0) toastMsg += `, +${reward.hint} 💡`;
+      if (reward.freeze > 0) toastMsg += `, +${reward.freeze} ❄️`;
+      if (reward.reveal > 0) toastMsg += `, +${reward.reveal} 🪄`;
+      
+      triggerToast(isTheEnd ? `🌌 THE END TERCAPAI! ${toastMsg}` : toastMsg, "success");
+      setClaimed([...claimed, achId]);
+
+      // Sinkronisasi ulang ke localStorage (opsional, agar cache terbaru)
       window.dispatchEvent(new Event("missionUpdated"));
+      window.dispatchEvent(new Event("inventoryUpdated"));
+
+    } catch (err) {
+      console.error(err);
+      triggerToast("Terjadi kesalahan jaringan.", "error");
     }
-
-    // Tambahkan Item ke Inventory
-    const inv = getInventory();
-    inv.freeze += reward.freeze || 0;
-    inv.hint += reward.hint || 0;
-    inv.reveal += reward.reveal || 0;
-    localStorage.setItem("kanjiMaster.inventory.v1", JSON.stringify(inv));
-    window.dispatchEvent(new Event("inventoryUpdated"));
-
-    // Susun pesan Toast
-    let toastMsg = `Hadiah diklaim! +${reward.exp} XP, +${reward.coins} 🌸`;
-    if (reward.hint > 0) toastMsg += `, +${reward.hint} 💡`;
-    if (reward.freeze > 0) toastMsg += `, +${reward.freeze} ❄️`;
-    if (reward.reveal > 0) toastMsg += `, +${reward.reveal} 🪄`;
-    
-    triggerToast(isTheEnd ? `🌌 THE END TERCAPAI! ${toastMsg}` : toastMsg, "success");
-    setClaimed([...claimed, achId]);
   };
 
   // Fungsi cek progress
@@ -169,7 +173,7 @@ export default function AchievementTab() {
                     )}
                   </div>
 
-                  {/* 🆕 Kotak Hadiah Lengkap */}
+                  {/* Kotak Hadiah Lengkap */}
                   <div className={`shrink-0 border rounded-xl px-3 py-2 text-center shadow-sm w-full sm:w-auto flex flex-col gap-1 ${isTheEnd && isUnlocked ? "bg-yellow-50 border-yellow-300" : "bg-slate-50 border-slate-200"}`}>
                     <div className="text-sm font-black text-yellow-600">+{reward.exp.toLocaleString()} XP</div>
                     <div className="text-xs font-bold text-pink-500">+{reward.coins.toLocaleString()} 🌸</div>
