@@ -14,7 +14,6 @@ export default function ForgotPasswordPage() {
     setLoading(true);
 
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      // Ini akan mengarahkan user ke halaman ganti password setelah klik link di email
       redirectTo: `${window.location.origin}/update-password`, 
     });
 
