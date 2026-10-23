@@ -7,7 +7,7 @@ import { ACHIEVEMENTS_KOTOBA } from "@/data/achievements";
 import { ACHIEVEMENTS_KANJI } from "@/data/achievements-kanji";
 import { getMissionsState } from "@/utils/missionEngine";
 import { getStreakData } from "@/utils/streakEngine";
-import AppLayout from "@/components/AppLayout"; // Cukup AppLayout saja
+import AppLayout from "@/components/AppLayout";
 
 function getTitle(mastered: number) {
   if (mastered >= 462) return { name: "Kanji Grandmaster", subtitle: "Ultimate Achievement", color: "from-yellow-400 to-amber-600", emoji: "👑" };
@@ -251,7 +251,7 @@ export default function ProfilPage() {
                 <>
                   <p className="text-slate-600 max-w-lg mx-auto mb-4">{profile.bio}</p>
                   
-                  <div className="max-w-sm mx-auto bg-slate-50 rounded-xl p-3 border border-slate-200">
+                  <div className="max-w-sm mx-auto bg-slate-50 rounded-xl p-3 border border-slate-200 mb-4">
                     <div className="flex justify-between text-xs font-bold text-slate-500 mb-2">
                       <span>EXP: {userExp}</span>
                       <span>Next Level</span>
@@ -260,6 +260,14 @@ export default function ProfilPage() {
                       <div className="h-full bg-gradient-to-r from-yellow-400 to-amber-500" style={{ width: `${(userExp % 100)}%` }} />
                     </div>
                   </div>
+
+                  {/* 🆕 Tombol Ganti Password */}
+                  <button 
+                    onClick={() => window.location.href = '/update-password'} 
+                    className="text-sm text-blue-600 font-bold hover:underline flex items-center justify-center gap-1 mx-auto"
+                  >
+                    🔑 Ganti Password
+                  </button>
                 </>
               )}
             </div>

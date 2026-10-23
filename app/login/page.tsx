@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { supabase } from '@/utils/supabase';
 import { useRouter } from 'next/navigation';
 import { triggerToast } from '@/utils/toast';
+import Link from 'next/link'; // 🆕 Import Link
 
 export default function LoginPage() {
   const router = useRouter();
@@ -13,7 +14,7 @@ export default function LoginPage() {
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
   
-  // 🆕 State untuk Icon Mata
+  // State untuk Icon Mata
   const [showPassword, setShowPassword] = useState(false);
 
   const handleAuth = async (e: React.FormEvent) => {
@@ -26,7 +27,7 @@ export default function LoginPage() {
         triggerToast(error.message, "error");
       } else {
         triggerToast("Selamat datang kembali! 🎉", "success");
-        setTimeout(() => router.push('/'), 1500); // Beri jeda 1.5 detik agar toast terbaca
+        setTimeout(() => router.push('/'), 1500);
       }
     } else {
       const { data, error } = await supabase.auth.signUp({ email, password });
@@ -46,7 +47,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex bg-slate-50">
       
-      {/* 🆕 Sisi Kiri: Ilustrasi / Branding (Sembunyi di HP) */}
+      {/* Sisi Kiri: Ilustrasi / Branding (Sembunyi di HP) */}
       <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-blue-500 to-indigo-700 relative overflow-hidden items-center justify-center p-12">
         <div className="absolute top-10 left-10 text-9xl opacity-10 select-none">🌸</div>
         <div className="absolute bottom-10 right-10 text-9xl opacity-10 select-none">⛩️</div>
@@ -111,7 +112,6 @@ export default function LoginPage() {
                   className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl p-3.5 pr-12 outline-none focus:border-blue-500 focus:bg-white transition" 
                   placeholder="••••••••" 
                 />
-                {/* 🆕 Tombol Icon Mata */}
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
@@ -131,12 +131,23 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <p className="text-center text-sm text-slate-500 mt-8">
-            {isLogin ? "Belum punya akun? " : "Sudah punya akun? "}
-            <button onClick={() => setIsLogin(!isLogin)} className="text-blue-600 font-bold hover:underline transition">
-              {isLogin ? "Daftar gratis" : "Masuk di sini"}
-            </button>
-          </p>
+          {/* 🆕 Link Lupa Password & Daftar */}
+          <div className="mt-8 text-center space-y-2">
+            <p className="text-sm text-slate-500">
+              {isLogin ? "Belum punya akun? " : "Sudah punya akun? "}
+              <button onClick={() => setIsLogin(!isLogin)} className="text-blue-600 font-bold hover:underline transition">
+                {isLogin ? "Daftar gratis" : "Masuk di sini"}
+              </button>
+            </p>
+            
+            {isLogin && (
+              <p className="text-sm">
+                <Link href="/forgot-password" className="text-slate-500 hover:text-blue-600 transition">
+                  Lupa password?
+                </Link>
+              </p>
+            )}
+          </div>
           
         </div>
       </div>
