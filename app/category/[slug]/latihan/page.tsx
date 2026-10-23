@@ -47,25 +47,31 @@ function LatihanContent() {
   const [hintsLeft, setHintsLeft] = useState(3);
   const [wasHinted, setWasHinted] = useState(false);
   
-  // 🆕 State Item & Reveal
+  // State Item & Reveal
   const [inventory, setInventory] = useState<any>({});
   const [revealActive, setRevealActive] = useState(false);
   const [revealTimeLeft, setRevealTimeLeft] = useState(0);
 
   useEffect(() => {
     if (!slug) return;
+    setLoading(true);
+    
+    // 🆕 HANYA mengambil kanji dari kategori yang dipilih (menggunakan slug)
     fetch(`/api/categories/${slug}/kanji`)
       .then((r) => r.json())
       .then((data: Kanji[]) => {
         if (isRandomMode) {
-          const shuffled = shuffle(data);
+          const shuffled = shuffle(data || []);
           setKanjiList(shuffled.slice(0, 50));
         } else {
           setKanjiList(data || []);
         }
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch((err) => {
+        console.error("Gagal memuat kanji:", err);
+        setLoading(false);
+      });
 
     setInventory(getInventory());
     window.addEventListener("inventoryUpdated", () => setInventory(getInventory()));
@@ -119,6 +125,7 @@ function LatihanContent() {
     );
   }
 
+  // 🆕 PENGAMAN: Jika data latihan kosong
   if (kanjiList.length === 0) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 to-blue-100 p-6 text-center">
@@ -360,7 +367,6 @@ function LatihanContent() {
           )}
         </div>
 
-        {/* 🆕 Panel Item Bantuan */}
         <div className="flex justify-center gap-3 mb-4">
           <button 
             onClick={handleUseHint}
