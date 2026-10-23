@@ -1,12 +1,11 @@
 // app/api/categories/route.ts
 import { NextResponse } from "next/server";
-import kanjiData from "@/data/kanji.json";
+import { KANJI_DATA } from "@/data/kanji";
 
 export async function GET() {
   try {
     const categoriesMap: Record<string, any> = {};
-
-    kanjiData.forEach((k: any) => {
+    KANJI_DATA.forEach((k) => {
       if (!categoriesMap[k.categorySlug]) {
         categoriesMap[k.categorySlug] = {
           id: Object.keys(categoriesMap).length + 1,
@@ -20,9 +19,7 @@ export async function GET() {
       categoriesMap[k.categorySlug].count += 1;
       categoriesMap[k.categorySlug].kanjiIds.push(k.id);
     });
-
-    const categories = Object.values(categoriesMap);
-    return NextResponse.json(categories);
+    return NextResponse.json(Object.values(categoriesMap));
   } catch (err) {
     return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
