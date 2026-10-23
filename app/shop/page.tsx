@@ -6,7 +6,8 @@ import { SHOP_ITEMS } from "@/data/shop-items";
 import { getMissionsState } from "@/utils/missionEngine";
 import { triggerToast } from "@/utils/toast";
 import { getInventory } from "@/utils/luckyEngine";
-import AppLayout from "@/components/AppLayout"; // Cukup AppLayout saja
+import AppLayout from "@/components/AppLayout";
+import { supabase } from "@/utils/supabase"; // 🆕 Import Supabase
 
 export default function SakuraShopPage() {
   const [coins, setCoins] = useState(0);
@@ -35,44 +36,36 @@ export default function SakuraShopPage() {
     return () => window.removeEventListener("inventoryUpdated", loadData);
   }, []);
 
-  const handleBuy = (item: any) => {
-    if (coins < item.price) {
-      triggerToast("Koin Sakura kamu tidak cukup!", "error");
-      return;
-    }
+  // 🆕 handleBuy memanggil API Server
+  const handleBuy = async (item: any) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return triggerToast("Login dulu!", "error");
 
-    // Cek Max Purchase untuk Konsumabel
-    if (item.category === "consumable") {
-      const itemKey = item.id.replace("item_", "");
-      const currentCount = consumableInv[itemKey] || 0;
-      if (item.maxPurchase && currentCount >= item.maxPurchase) {
-        triggerToast(`Maksimal pembelian ${item.name} adalah ${item.maxPurchase}!`, "error");
-        return;
+    const itemKey = item.id.replace("item_", "");
+
+    try {
+      const res = await fetch("/api/shop/buy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user.id,
+          itemId: item.id,
+          price: item.price,
+          itemType: item.category, // 'consumable' atau 'cosmetic'
+          itemKey: itemKey, // 'freeze', 'hint', 'reveal'
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        return triggerToast(data.error || "Gagal membeli", "error");
       }
-    }
 
-    // Kurangi koin
-    const ms = getMissionsState();
-    if (ms) {
-      ms.coins -= item.price;
-      localStorage.setItem("kanjiMaster.missions.v1", JSON.stringify(ms));
-      setCoins(ms.coins);
-    }
-
-    // Proses Item
-    if (item.category === "consumable") {
-      const itemKey = item.id.replace("item_", "");
-      const newInv = { ...consumableInv, [itemKey]: (consumableInv[itemKey] || 0) + 1 };
-      localStorage.setItem("kanjiMaster.inventory.v1", JSON.stringify(newInv));
-      setConsumableInv(newInv);
       triggerToast(`Berhasil membeli ${item.name}!`, "success");
-      window.dispatchEvent(new Event("missionUpdated"));
-    } else {
-      const newOwned = [...ownedCosmetics, item.id];
-      localStorage.setItem("shopInventory", JSON.stringify(newOwned));
-      setOwnedCosmetics(newOwned);
-      triggerToast(`Berhasil membeli ${item.name}!`, "success");
-      window.dispatchEvent(new Event("missionUpdated"));
+      loadData(); // Refresh data koin & inventory
+    } catch (err) {
+      triggerToast("Kesalahan jaringan.", "error");
     }
   };
 

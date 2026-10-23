@@ -55,44 +55,40 @@ export default function FriendsListPage() {
     if (inv) setMyFreeze(inv.freeze);
   }, []);
 
+  // 🆕 handleSendGift memanggil API Server
   const handleSendGift = async () => {
     if (!myId || !selectedFriend) return;
 
-    // Validasi saldo
-    if (giftType === "coins" && giftAmount > myCoins) return triggerToast("Koin kamu tidak cukup!", "error");
-    if (giftType === "freeze" && giftAmount > myFreeze) return triggerToast("Freeze kamu tidak cukup!", "error");
+    try {
+      const res = await fetch("/api/gifts/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          senderId: myId,
+          receiverId: selectedFriend.id,
+          itemType: giftType,
+          amount: giftAmount,
+        }),
+      });
 
-    // 1. Simpan ke database (Supabase)
-    const { error } = await supabase.from('gifts').insert({
-      sender_id: myId,
-      receiver_id: selectedFriend.id,
-      item_type: giftType,
-      amount: giftAmount,
-    });
+      const data = await res.json();
 
-    if (error) return triggerToast("Gagal mengirim hadiah: " + error.message, "error");
+      if (!res.ok) {
+        return triggerToast(data.error || "Gagal mengirim", "error");
+      }
 
-    // 2. Kurangi saldo kita di localStorage
-    if (giftType === "coins") {
+      triggerToast(`Hadiah berhasil dikirim ke ${selectedFriend.username}! 🎁`, "success");
+      setSelectedFriend(null);
+      
+      // Refresh saldo kita (dari localStorage yang sudah disinkronkan)
       const ms = getMissionsState();
-      if (ms) {
-        ms.coins -= giftAmount;
-        localStorage.setItem("kanjiMaster.missions.v1", JSON.stringify(ms));
-        setMyCoins(ms.coins);
-        window.dispatchEvent(new Event("missionUpdated"));
-      }
-    } else {
+      if (ms) setMyCoins(ms.coins);
       const inv = getInventory();
-      if (inv) {
-        inv.freeze -= giftAmount;
-        localStorage.setItem("kanjiMaster.inventory.v1", JSON.stringify(inv));
-        setMyFreeze(inv.freeze);
-        window.dispatchEvent(new Event("inventoryUpdated"));
-      }
-    }
+      if (inv) setMyFreeze(inv.freeze);
 
-    triggerToast(`Hadiah berhasil dikirim ke ${selectedFriend.username}! 🎁`, "success");
-    setSelectedFriend(null); // Tutup modal
+    } catch (err) {
+      triggerToast("Kesalahan jaringan.", "error");
+    }
   };
 
   return (
