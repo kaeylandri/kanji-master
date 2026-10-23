@@ -16,12 +16,23 @@ function AuthGuardContent({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      const isAuthPage = pathname === "/login" || pathname === "/register";
+      
+      // 🆕 Tambahkan forgot-password dan update-password sebagai halaman publik
+      const isAuthPage = 
+        pathname === "/login" || 
+        pathname === "/register" || 
+        pathname === "/forgot-password" || 
+        pathname === "/update-password";
 
       if (!session && !isAuthPage) {
+        // Jika belum login dan bukan di halaman publik, lempar ke login
         router.push("/login");
       } else if (session && isAuthPage) {
-        router.push("/");
+        // Jika sudah login tapi mencoba buka halaman login/register, lempar ke dashboard
+        // (Kecuali update-password, karena user yang login mungkin ingin ganti password)
+        if (pathname !== "/update-password") {
+          router.push("/");
+        }
       } else {
         if (session) {
           checkStreakExpiry();
