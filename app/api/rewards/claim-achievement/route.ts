@@ -2,14 +2,20 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-// 🆕 Gunakan Service Role Key agar bisa bypass RLS
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
-
 export async function POST(request: Request) {
   try {
+    // 🆕 Cek Environment Variable dulu
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !serviceKey) {
+      console.error("Missing Supabase Environment Variables!");
+      return NextResponse.json({ error: "Konfigurasi server tidak lengkap." }, { status: 500 });
+    }
+
+    // Gunakan Service Role Key agar bisa bypass RLS
+    const supabaseAdmin = createClient(supabaseUrl, serviceKey);
+
     const { userId, achievementId, rewardExp, rewardCoins, rewardHint, rewardFreeze, rewardReveal } = await request.json();
 
     if (!userId || !achievementId) {
@@ -17,12 +23,17 @@ export async function POST(request: Request) {
     }
 
     // 1. Cek apakah achievement sudah pernah diklaim
-    const { data: existingClaim } = await supabaseAdmin
+    const { data: existingClaim, error: checkError } = await supabaseAdmin
       .from('achievement_rewards')
       .select('id')
       .eq('user_id', userId)
       .eq('achievement_id', achievementId)
       .maybeSingle();
+
+    if (checkError) {
+      console.error("Check Error:", checkError);
+      return NextResponse.json({ error: "Gagal mengecek klaim: " + checkError.message }, { status: 500 });
+    }
 
     if (existingClaim) {
       return NextResponse.json({ error: "Achievement ini sudah diklaim!" }, { status: 400 });
@@ -31,10 +42,7 @@ export async function POST(request: Request) {
     // 2. Catat klaim ke tabel achievement_rewards
     const { error: insertError } = await supabaseAdmin
       .from('achievement_rewards')
-      .insert({
-        user_id: userId,
-        achievement_id: achievementId,
-      });
+      .insert({ user_id: userId, achievement_id: achievementId });
 
     if (insertError) {
       console.error("Insert Error:", insertError);
@@ -42,11 +50,15 @@ export async function POST(request: Request) {
     }
 
     // 3. Ambil data profil saat ini
-    const { data: profile } = await supabaseAdmin
+    const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
       .select('total_exp, sakura_coins')
       .eq('id', userId)
       .single();
+
+    if (profileError) {
+      console.error("Profile Error:", profileError);
+    }
 
     // 4. Update profil dengan hadiah baru
     const { error: updateError } = await supabaseAdmin
@@ -58,18 +70,21 @@ export async function POST(request: Request) {
       .eq('id', userId);
 
     if (updateError) {
+      console.error("Update Error:", updateError);
       return NextResponse.json({ error: "Gagal update reward: " + updateError.message }, { status: 500 });
     }
 
-    // 5. Update Inventory
+    // 5. Update Inventory (Aman dari error kolom)
     if (rewardHint > 0 || rewardFreeze > 0 || rewardReveal > 0) {
+      // Cek dulu apakah baris inventory user ada
       const { data: inventory } = await supabaseAdmin
         .from('user_inventory')
-        .select('hint, freeze_count, reveal')
+        .select('*')
         .eq('user_id', userId)
-        .single();
+        .maybeSingle();
 
       if (inventory) {
+        // Jika ada, update (pastikan nama kolom sesuai DB kamu)
         await supabaseAdmin
           .from('user_inventory')
           .update({
@@ -79,6 +94,7 @@ export async function POST(request: Request) {
           })
           .eq('user_id', userId);
       } else {
+        // Jika belum ada, buat baru (Insert)
         await supabaseAdmin
           .from('user_inventory')
           .insert({
@@ -90,13 +106,10 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({ 
-      success: true, 
-      message: `Hadiah berhasil diklaim!` 
-    });
+    return NextResponse.json({ success: true, message: `Hadiah berhasil diklaim!` });
 
   } catch (err: any) {
-    console.error("Server Error:", err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    console.error("Fatal Server Error:", err);
+    return NextResponse.json({ error: "Terjadi kesalahan sistem: " + err.message }, { status: 500 });
   }
 }
