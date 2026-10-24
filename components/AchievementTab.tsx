@@ -5,6 +5,7 @@ import { supabase } from "@/utils/supabase";
 import { ACHIEVEMENTS_KANJI } from "@/data/achievements-kanji";
 import { ACHIEVEMENTS_KOTOBA } from "@/data/achievements";
 import { triggerToast } from "@/utils/toast";
+import { syncDataToDatabase } from "@/utils/syncEngine"; // 🆕 Import
 
 // Hadiah default berdasarkan tipe achievement
 const REWARDS = {
@@ -21,7 +22,6 @@ export default function AchievementTab() {
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState<"kanji" | "kotoba">("kanji");
 
-  // 🆕 PENGAMAN: Pastikan parsing JSON aman dan memberikan fallback array/object kosong
   const safeParse = (key: string, fallback: any) => {
     if (typeof window === "undefined") return fallback;
     try {
@@ -32,14 +32,12 @@ export default function AchievementTab() {
     }
   };
 
-  // Data user (dari localStorage dengan pengaman)
   const masteredKanji = safeParse("masteredKanji", []);
   const masteredKotoba = safeParse("masteredKotoba", []);
   
   const kanjiStats = safeParse("kanjiAchievements", {});
   const kotobaStats = safeParse("kotobaExamStats", {});
   
-  // 🆕 PENGAMAN: Pastikan unlocked selalu array sebelum di-spread
   const unlockedModes = [
     ...(Array.isArray(kanjiStats.unlocked) ? kanjiStats.unlocked : []), 
     ...(Array.isArray(kotobaStats.unlocked) ? kotobaStats.unlocked : [])
@@ -59,17 +57,17 @@ export default function AchievementTab() {
     fetchClaimed();
   }, []);
 
-  // 🆕 handleClaim dengan Optimistic UI (Tanpa Delay)
+  // 🆕 handleClaim dengan Optimistic UI + Sinkronisasi
   const handleClaim = async (achId: string, type: string, isTheEnd: boolean = false) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
     const reward = isTheEnd ? REWARDS.the_end : REWARDS[type as keyof typeof REWARDS] || REWARDS.general;
 
-    // 1. Ubah tampilan jadi "Diklaim" seketika (Optimistic UI)
+    // 1. Optimistic UI
     setClaimed((prev) => [...prev, achId]);
 
-    // 2. Susun pesan Toast
+    // 2. Toast
     let toastMsg = `Hadiah diklaim! +${reward.exp} XP, +${reward.coins} 🌸`;
     if (reward.hint > 0) toastMsg += `, +${reward.hint} 💡`;
     if (reward.freeze > 0) toastMsg += `, +${reward.freeze} ❄️`;
@@ -77,7 +75,7 @@ export default function AchievementTab() {
     
     triggerToast(isTheEnd ? `🌌 THE END TERCAPAI! ${toastMsg}` : toastMsg, "success");
 
-    // 3. Proses API di belakang layar
+    // 3. Proses API
     try {
       const res = await fetch("/api/rewards/claim-achievement", {
         method: "POST",
@@ -96,19 +94,20 @@ export default function AchievementTab() {
       const data = await res.json();
 
       if (!res.ok) {
-        // Jika gagal, kembalikan tombol ke semula dan tampilkan error
         setClaimed((prev) => prev.filter(id => id !== achId));
         triggerToast(data.error || "Gagal klaim", "error");
         return;
       }
 
-      // Sinkronisasi ulang event agar Header (EXP/Koin) terupdate
+      // 🆕 SINKRONISASI DATABASE KE LOCALSTORAGE
+      await syncDataToDatabase();
+
+      // Dispatch event agar Header langsung update
       window.dispatchEvent(new Event("missionUpdated"));
       window.dispatchEvent(new Event("inventoryUpdated"));
 
     } catch (err) {
       console.error(err);
-      // Jika jaringan error, kembalikan tombol
       setClaimed((prev) => prev.filter(id => id !== achId));
       triggerToast("Terjadi kesalahan jaringan.", "error");
     }
@@ -154,7 +153,6 @@ export default function AchievementTab() {
       ) : (
         <div className="space-y-4">
           {achievementsToShow.map((ach) => {
-            // 🆕 PENGAMAN: Pastikan ach dan ach.id ada sebelum diproses
             if (!ach || !ach.id) return null;
 
             const progress = checkProgress(ach);
@@ -162,7 +160,6 @@ export default function AchievementTab() {
             const isClaimed = claimed.includes(ach.id);
             const isTheEnd = ach.id === "the_end";
             
-            // Ambil data hadiah berdasarkan tipe
             const reward = isTheEnd ? REWARDS.the_end : REWARDS[ach.type as keyof typeof REWARDS] || REWARDS.general;
 
             return (

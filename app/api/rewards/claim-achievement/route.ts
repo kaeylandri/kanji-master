@@ -4,7 +4,6 @@ import { createClient } from "@supabase/supabase-js";
 
 export async function POST(request: Request) {
   try {
-    // 🆕 Cek Environment Variable dulu
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -13,7 +12,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Konfigurasi server tidak lengkap." }, { status: 500 });
     }
 
-    // Gunakan Service Role Key agar bisa bypass RLS
     const supabaseAdmin = createClient(supabaseUrl, serviceKey);
 
     const { userId, achievementId, rewardExp, rewardCoins, rewardHint, rewardFreeze, rewardReveal } = await request.json();
@@ -74,9 +72,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Gagal update reward: " + updateError.message }, { status: 500 });
     }
 
-    // 5. Update Inventory (Aman dari error kolom)
+    // 5. Update Inventory
     if (rewardHint > 0 || rewardFreeze > 0 || rewardReveal > 0) {
-      // Cek dulu apakah baris inventory user ada
       const { data: inventory } = await supabaseAdmin
         .from('user_inventory')
         .select('*')
@@ -84,7 +81,6 @@ export async function POST(request: Request) {
         .maybeSingle();
 
       if (inventory) {
-        // Jika ada, update (pastikan nama kolom sesuai DB kamu)
         await supabaseAdmin
           .from('user_inventory')
           .update({
@@ -94,7 +90,6 @@ export async function POST(request: Request) {
           })
           .eq('user_id', userId);
       } else {
-        // Jika belum ada, buat baru (Insert)
         await supabaseAdmin
           .from('user_inventory')
           .insert({

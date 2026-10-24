@@ -24,7 +24,7 @@ export async function syncDataToDatabase() {
     const missions = JSON.parse(localStorage.getItem("kanjiMaster.missions.v1") || "{}");
     const streak = JSON.parse(localStorage.getItem("kanjiMaster.streak.v1") || "{}");
 
-    // Tentukan data final (Ambil yang terbesar)
+    // 🆕 Tentukan data final (Ambil yang terbesar)
     const finalExp = Math.max(dbProfile.total_exp || 0, missions.exp || 0);
     const finalCoins = Math.max(dbProfile.sakura_coins || 0, missions.coins || 0);
     const finalStreak = Math.max(dbProfile.current_streak || 0, streak.currentStreak || 0);
@@ -35,7 +35,7 @@ export async function syncDataToDatabase() {
     const finalBio = userProfile.bio !== undefined && userProfile.bio !== "" ? userProfile.bio : dbProfile.bio;
     const finalFavorites = userProfile.favoriteKanjiIds || [];
 
-    // Update DB
+    // Update DB dengan data final
     await supabase.from('profiles').update({
       total_exp: finalExp,
       sakura_coins: finalCoins,
@@ -46,7 +46,7 @@ export async function syncDataToDatabase() {
       bio: finalBio,
     }).eq('id', user.id);
 
-    // Sinkronkan ke LocalStorage
+    // 🆕 PAKSA LOCALSTORAGE MENGGUNAKAN DATA FINAL DARI DB
     const updatedMissions = {
       ...missions,
       exp: finalExp,
