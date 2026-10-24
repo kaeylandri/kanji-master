@@ -2,184 +2,153 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { SHOP_ITEMS } from "@/data/shop-items";
+import Link from "next/link";
+import { SHOP_ITEMS } from "@/data/shop-items"; // Sesuaikan path jika beda
 import { getMissionsState } from "@/utils/missionEngine";
+import { getInventory, addInventoryItem } from "@/utils/luckyEngine";
 import { triggerToast } from "@/utils/toast";
-import { getInventory } from "@/utils/luckyEngine";
+import { supabase } from "@/utils/supabase";
 import AppLayout from "@/components/AppLayout";
-import { supabase } from "@/utils/supabase"; // 🆕 Import Supabase
 
-export default function SakuraShopPage() {
+export default function ShopPage() {
   const [coins, setCoins] = useState(0);
-  const [equipped, setEquipped] = useState<Record<string, string>>({});
-  const [ownedCosmetics, setOwnedCosmetics] = useState<string[]>([]);
-  const [consumableInv, setConsumableInv] = useState<any>({});
+  const [inventory, setInventory] = useState<any>({});
+  const [isBuying, setIsBuying] = useState<string | null>(null);
 
   const loadData = () => {
-    const ms = getMissionsState();
-    if (ms) setCoins(ms.coins);
-
-    try {
-      const eq = JSON.parse(localStorage.getItem("shopEquipped") || "{}");
-      setEquipped(eq);
-
-      const owned = JSON.parse(localStorage.getItem("shopInventory") || "[]");
-      setOwnedCosmetics(owned);
-
-      setConsumableInv(getInventory());
-    } catch (e) {}
+    const missions = getMissionsState();
+    setCoins(missions?.coins || 0);
+    setInventory(getInventory());
   };
 
   useEffect(() => {
     loadData();
+    window.addEventListener("missionUpdated", loadData);
     window.addEventListener("inventoryUpdated", loadData);
-    return () => window.removeEventListener("inventoryUpdated", loadData);
+    return () => {
+      window.removeEventListener("missionUpdated", loadData);
+      window.removeEventListener("inventoryUpdated", loadData);
+    };
   }, []);
 
-  // 🆕 handleBuy memanggil API Server
   const handleBuy = async (item: any) => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return triggerToast("Login dulu!", "error");
+    if (isBuying) return; // Cegah double click
+    
+    // Cek saldo
+    if (coins < item.price) {
+      return triggerToast("Koin Sakura tidak cukup! 🌸", "error");
+    }
 
-    const itemKey = item.id.replace("item_", "");
+    // 🆕 1. SIMPAN STATE LAMA (Untuk rollback jika gagal)
+    const oldCoins = coins;
+    const oldInventory = { ...inventory };
+    const itemTypeKey = item.type === "freeze" ? "freeze" : item.type === "hint" ? "hint" : "reveal";
 
+    // 🆕 2. OPTIMISTIC UI (Langsung ubah tampilan seketika)
+    setCoins(oldCoins - item.price);
+    
+    // Update localStorage seketika agar UI lain ikut berubah
+    const currentMissions = getMissionsState();
+    if (currentMissions) {
+      currentMissions.coins = oldCoins - item.price;
+      localStorage.setItem("kanjiMaster.missions.v1", JSON.stringify(currentMissions));
+    }
+
+    // Update Inventory lokal
+    const currentInv = getInventory();
+    currentInv[itemTypeKey] = (currentInv[itemTypeKey] || 0) + 1;
+    localStorage.setItem("kanjiMaster.inventory.v1", JSON.stringify(currentInv));
+    setInventory(currentInv);
+
+    // Dispatch event agar Header (saldo koin & item) langsung berubah
+    window.dispatchEvent(new Event("missionUpdated"));
+    window.dispatchEvent(new Event("inventoryUpdated"));
+
+    triggerToast(`Berhasil membeli ${item.name}!`, "success");
+    setIsBuying(item.id);
+
+    // 🆕 3. PROSES API DI BELAKANG LAYAR
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("User tidak ditemukan");
+
       const res = await fetch("/api/shop/buy", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: user.id,
           itemId: item.id,
+          itemType: itemTypeKey,
           price: item.price,
-          itemType: item.category, // 'consumable' atau 'cosmetic'
-          itemKey: itemKey, // 'freeze', 'hint', 'reveal'
         }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        return triggerToast(data.error || "Gagal membeli", "error");
+        // 🆕 JIKA GAGAL: Kembalikan state seperti semula
+        throw new Error(data.error || "Gagal membeli item");
       }
 
-      triggerToast(`Berhasil membeli ${item.name}!`, "success");
-      loadData(); // Refresh data koin & inventory
-    } catch (err) {
-      triggerToast("Kesalahan jaringan.", "error");
+      // Sinkronisasi data dari server (opsional, untuk memastikan DB & Local sama)
+      // window.location.reload(); // Bisa dipakai jika data sering tidak sinkron
+
+    } catch (err: any) {
+      console.error("Purchase Error:", err);
+      triggerToast(err.message || "Gagal memproses pembelian", "error");
+      
+      // 🆕 ROLLBACK: Kembalikan koin & inventory jika API gagal
+      setCoins(oldCoins);
+      setInventory(oldInventory);
+      
+      const rollbackMissions = getMissionsState();
+      if (rollbackMissions) {
+        rollbackMissions.coins = oldCoins;
+        localStorage.setItem("kanjiMaster.missions.v1", JSON.stringify(rollbackMissions));
+      }
+      
+      const rollbackInv = { ...oldInventory };
+      localStorage.setItem("kanjiMaster.inventory.v1", JSON.stringify(rollbackInv));
+
+      window.dispatchEvent(new Event("missionUpdated"));
+      window.dispatchEvent(new Event("inventoryUpdated"));
+    } finally {
+      setIsBuying(null);
     }
-  };
-
-  const handleEquip = (item: any) => {
-    const newEq = { ...equipped, [item.category]: item.id };
-    setEquipped(newEq);
-    localStorage.setItem("shopEquipped", JSON.stringify(newEq));
-    triggerToast(`${item.name} berhasil dipasang!`, "success");
-  };
-
-  const handleUnequip = (category: string) => {
-    const newEq = { ...equipped };
-    delete newEq[category];
-    setEquipped(newEq);
-    localStorage.setItem("shopEquipped", JSON.stringify(newEq));
   };
 
   return (
     <AppLayout>
       <div className="max-w-4xl mx-auto">
-        
-        {/* Header Toko & Koin */}
-        <div className="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4">
-          <div className="text-center sm:text-left">
-            <h1 className="text-3xl font-bold text-slate-800 mb-2 flex items-center justify-center sm:justify-start gap-3">
-              🌸 Sakura Shop
-            </h1>
-            <p className="text-slate-500">Tukarkan Koin Sakura-mu dengan kosmetik atau item spesial.</p>
-          </div>
-          <div className="bg-white border-2 border-pink-200 px-6 py-3 rounded-2xl flex items-center gap-3 shadow-sm w-full sm:w-auto justify-center">
-            <span className="text-3xl">🌸</span>
-            <div>
-              <div className="text-xs text-slate-400 uppercase font-bold">Koin Sakura</div>
-              <div className="text-2xl font-bold text-pink-500">{coins}</div>
-            </div>
-          </div>
+        <div className="mb-8 text-center">
+          <div className="text-5xl mb-3">🌸</div>
+          <h1 className="text-3xl font-bold text-slate-800 mb-2">Sakura Shop</h1>
+          <p className="text-slate-500">Tukar koin sakura dengan item bermanfaat!</p>
         </div>
 
-        {/* Grid Item Toko */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {SHOP_ITEMS.map((item) => {
-            const isConsumable = item.category === "consumable";
-            const itemKey = item.id.replace("item_", "");
-            const ownedCount = consumableInv[itemKey] || 0;
-            const isMaxed = isConsumable && item.maxPurchase && ownedCount >= item.maxPurchase;
-            
-            const isOwned = !isConsumable && ownedCosmetics.includes(item.id);
-            const isEquipped = !isConsumable && equipped[item.category] === item.id;
+            const itemTypeKey = item.type === "freeze" ? "freeze" : item.type === "hint" ? "hint" : "reveal";
+            const ownedCount = inventory[itemTypeKey] || 0;
+            const maxCount = item.type === "freeze" ? 5 : item.type === "hint" ? 3 : Infinity; // Sesuaikan limit dengan kebutuhan
+            const isMaxed = ownedCount >= maxCount;
 
             return (
-              <div key={item.id} className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition flex flex-col">
-                <div className={`h-32 flex items-center justify-center text-6xl border-b border-slate-100 ${item.cssClass}`}>
-                  {item.preview}
+              <div key={item.id} className="bg-white rounded-2xl p-6 border-2 border-slate-200 shadow-sm">
+                {/* Konten UI sama seperti sebelumnya */}
+                <div className={`text-4xl mb-2`}>{item.icon}</div>
+                <h3 className="font-bold text-lg">{item.name}</h3>
+                <p className="text-sm text-slate-500 mb-4">{item.description}</p>
+                <div className="text-center mb-2">
+                  <span className="text-sm text-slate-500">Dimiliki: {ownedCount} / {maxCount === Infinity ? "∞" : maxCount}</span>
                 </div>
-                <div className="p-5 flex-1 flex flex-col">
-                  <div className="flex justify-between items-start mb-1">
-                    <h3 className="font-bold text-lg text-slate-800">{item.name}</h3>
-                    <span className="text-xs bg-slate-100 text-slate-500 px-2 py-1 rounded-full capitalize">{isConsumable ? "Item" : item.category}</span>
-                  </div>
-                  <p className="text-sm text-slate-500 mb-4">{item.description}</p>
-                  
-                  <div className="mt-auto">
-                    {isConsumable ? (
-                      <div className="space-y-2">
-                        <div className="text-xs text-slate-500 text-center font-bold">
-                          Dimiliki: {ownedCount} / {item.maxPurchase || "∞"}
-                        </div>
-                        <button
-                          onClick={() => handleBuy(item)}
-                          disabled={isMaxed || coins < item.price}
-                          className={`w-full font-bold py-3 rounded-xl transition flex items-center justify-center gap-2 ${
-                            isMaxed 
-                              ? "bg-slate-100 text-slate-400 cursor-not-allowed" 
-                              : coins < item.price
-                              ? "bg-blue-400/50 text-white cursor-not-allowed opacity-70"
-                              : "bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white shadow-md active:scale-95"
-                          }`}
-                        >
-                          {isMaxed ? "Maksimal" : <>Beli <span className="text-white font-extrabold">{item.price} 🌸</span></>}
-                        </button>
-                      </div>
-                    ) : (
-                      <>
-                        {!isOwned ? (
-                          <button
-                            onClick={() => handleBuy(item)}
-                            disabled={coins < item.price}
-                            className={`w-full font-bold py-3 rounded-xl transition flex items-center justify-center gap-2 active:scale-95 ${
-                              coins < item.price
-                                ? "bg-blue-400/50 text-white cursor-not-allowed opacity-70"
-                                : "bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white shadow-md"
-                            }`}
-                          >
-                            Beli <span className="text-white font-extrabold">{item.price} 🌸</span>
-                          </button>
-                        ) : isEquipped ? (
-                          <button
-                            onClick={() => handleUnequip(item.category)}
-                            className="w-full bg-rose-50 text-rose-500 border border-rose-200 hover:bg-rose-100 font-bold py-3 rounded-xl transition active:scale-95"
-                          >
-                            Lepas
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => handleEquip(item)}
-                            className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl transition active:scale-95"
-                          >
-                            Pasang
-                          </button>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </div>
+                <button
+                  onClick={() => handleBuy(item)}
+                  disabled={isMaxed || coins < item.price || isBuying === item.id}
+                  className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 disabled:from-slate-300 disabled:to-slate-300 text-white font-bold py-3 rounded-xl transition shadow-md active:scale-95"
+                >
+                  {isMaxed ? "Maksimal" : `Beli ${item.price} 🌸`}
+                </button>
               </div>
             );
           })}
