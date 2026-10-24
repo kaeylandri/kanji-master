@@ -6,7 +6,7 @@ export async function syncDataToDatabase() {
   if (!user) return;
 
   try {
-    // === 1. AMBIL DATA DARI DATABASE (Sumber Kebenaran) ===
+    // === 1. AMBIL DATA DARI DATABASE ===
     const { data: dbProfile, error: dbError } = await supabase
       .from('profiles')
       .select('total_exp, sakura_coins, current_streak, longest_streak, username, avatar_url, bio')
@@ -26,20 +26,18 @@ export async function syncDataToDatabase() {
     const missions = JSON.parse(localStorage.getItem("kanjiMaster.missions.v1") || "{}");
     const streak = JSON.parse(localStorage.getItem("kanjiMaster.streak.v1") || "{}");
 
-    // === 3. TENTUKAN DATA FINAL (Database Menang!) ===
-    // Kita ambil nilai TERBESAR antara DB dan LocalStorage.
-    // Jika LocalStorage kosong (0), maka nilai DB yang dipakai.
+    // === 3. TENTUKAN DATA FINAL ===
     const finalExp = Math.max(dbProfile.total_exp || 0, missions.exp || 0);
     const finalCoins = Math.max(dbProfile.sakura_coins || 0, missions.coins || 0);
     const finalStreak = Math.max(dbProfile.current_streak || 0, streak.currentStreak || 0);
     const finalLongestStreak = Math.max(dbProfile.longest_streak || 0, streak.longestStreak || 0);
 
-    // 🆕 PROFIL: Jika local kosong, PASTI pakai punya DB. Jangan pernah kirim null ke DB!
+    // 🆕 AVATAR: Jika local kosong, PASTI pakai punya DB. Jangan pernah kirim null ke DB!
     const finalUsername = userProfile.name || dbProfile.username;
-    const finalAvatar = userProfile.avatar || dbProfile.avatar_url;
+    const finalAvatar = userProfile.avatar || dbProfile.avatar_url; // <-- PERBAIKAN
     const finalBio = userProfile.bio !== undefined && userProfile.bio !== "" ? userProfile.bio : dbProfile.bio;
 
-    // === 4. UPDATE DATABASE (Hanya jika data local lebih baru, atau untuk sinkronisasi nama) ===
+    // === 4. UPDATE PROFIL DI DATABASE ===
     await supabase.from('profiles').update({
       total_exp: finalExp,
       sakura_coins: finalCoins,
@@ -51,7 +49,6 @@ export async function syncDataToDatabase() {
     }).eq('id', user.id);
 
     // === 5. PAKSA LOCALSTORAGE MENGGUNAKAN DATA DARI DATABASE ===
-    // Ini akan memperbaiki tampilan UI yang error / kosong.
     const updatedMissions = {
       ...missions,
       exp: finalExp,
@@ -69,12 +66,13 @@ export async function syncDataToDatabase() {
     const updatedProfile = {
       ...userProfile,
       name: finalUsername,
-      avatar: finalAvatar,
+      avatar: finalAvatar, // <-- PASTIKAN DISIMPAN DI SINI
       bio: finalBio,
     };
     localStorage.setItem("userProfile", JSON.stringify(updatedProfile));
 
-    // === 6. SINKRONISASI HAFALAN (KANJI & KOTOBA) ===
+    // === 6. SINKRONISASI HAFALAN ===
+    // ... (biarkan kode hafalan & achievement kamu tetap sama seperti sebelumnya)
     const { data: existingProgress } = await supabase
       .from('user_progress')
       .select('item_type, item_id')
@@ -118,7 +116,6 @@ export async function syncDataToDatabase() {
       await supabase.from('user_achievements').insert(achData);
     }
 
-    // Picu event agar UI langsung berubah tanpa reload
     window.dispatchEvent(new Event("missionUpdated"));
     window.dispatchEvent(new Event("streakUpdated"));
     
