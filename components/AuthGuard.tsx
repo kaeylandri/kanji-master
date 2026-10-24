@@ -12,7 +12,16 @@ import { triggerToast } from "@/utils/toast";
 function AuthGuardContent({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [isLoading, setIsLoading] = useState(true);
+  
+  // 🆕 State untuk memastikan pengecekan selesai sebelum render
+  const [isChecking, setIsChecking] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  const isAuthPage = 
+    pathname === "/login" || 
+    pathname === "/register" || 
+    pathname === "/forgot-password" || 
+    pathname === "/update-password";
 
   const claimGifts = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -21,54 +30,48 @@ function AuthGuardContent({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    // 🆕 PENGAMAN TIMEOUT: Jika dalam 2.5 detik tidak ada respon, matikan loading
-    const timeoutId = setTimeout(() => {
-      setIsLoading(false);
-    }, 2500);
+    let isMounted = true;
 
     const checkAuth = async () => {
       try {
-        // Beri jeda sedikit agar Supabase selesai memproses token dari URL
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // 🆕 Beri jeda sedikit agar Supabase sempat membaca token dari URL email
+        await new Promise(resolve => setTimeout(resolve, 300));
         
-        const { data: { session }, error } = await supabase.auth.getSession();
+        const { data: { session } } = await supabase.auth.getSession();
         
-        const isAuthPage = 
-          pathname === "/login" || 
-          pathname === "/register" || 
-          pathname === "/forgot-password" || 
-          pathname === "/update-password";
+        if (!isMounted) return;
 
         const isValidUser = session && session.user && session.user.email;
 
-        if (!isValidUser && !isAuthPage) {
-          // Jika tidak ada user valid, paksa bersihkan sesi dan lempar ke login
-          await supabase.auth.signOut();
-          router.push("/login");
-          return; 
-        }
-
-        if (isValidUser && isAuthPage && pathname !== "/update-password") {
-          router.push("/");
-          return;
-        }
-
         if (isValidUser) {
-          try {
-            checkStreakExpiry();
-            await syncDataToDatabase(); 
-            claimGifts();
-          } catch (err) {
-            console.error("Auth initialization error:", err);
+          setIsAuthenticated(true);
+          
+          // Jalankan sinkronisasi hanya jika bukan halaman auth
+          if (!isAuthPage) {
+            try {
+              checkStreakExpiry();
+              await syncDataToDatabase();
+              claimGifts();
+            } catch (err) {
+              console.error("Auth initialization error:", err);
+            }
+          }
+        } else {
+          setIsAuthenticated(false);
+          
+          // 🆕 Redirect ke login jika bukan halaman publik
+          if (!isAuthPage) {
+            router.replace("/login");
           }
         }
-
-        setIsLoading(false);
-        clearTimeout(timeoutId); // Hentikan timer jika berhasil
       } catch (err) {
         console.error("Check Auth Error:", err);
-        setIsLoading(false);
-        clearTimeout(timeoutId);
+        if (isMounted) {
+          setIsAuthenticated(false);
+          if (!isAuthPage) router.replace("/login");
+        }
+      } finally {
+        if (isMounted) setIsChecking(false);
       }
     };
 
@@ -76,33 +79,50 @@ function AuthGuardContent({ children }: { children: React.ReactNode }) {
 
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === "SIGNED_OUT") {
-        router.push("/login");
-        setIsLoading(false);
+        setIsAuthenticated(false);
+        if (!isAuthPage) router.replace("/login");
+        setIsChecking(false);
       }
       
       if (event === "SIGNED_IN" || event === "PASSWORD_RECOVERY") {
+        setIsAuthenticated(true);
+        
         if (pathname === "/update-password") {
-          setIsLoading(false);
+          setIsChecking(false);
         } else if (session?.user?.email) {
-          checkStreakExpiry();
-          await syncDataToDatabase();
-          claimGifts();
-          setIsLoading(false);
+          try {
+            checkStreakExpiry();
+            await syncDataToDatabase();
+            claimGifts();
+          } catch (err) {
+            console.error("Sync on auth change error:", err);
+          }
+          setIsChecking(false);
         }
       }
     });
 
     return () => {
-      clearTimeout(timeoutId);
+      isMounted = false;
       authListener.subscription.unsubscribe();
     };
-  }, [pathname, router]);
+  }, [pathname, isAuthPage, router]);
 
-  if (isLoading) {
+  // 🆕 TAHAN RENDER SELAMA PENGECEKAN
+  if (isChecking) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center">
         <div className="text-6xl mb-4 animate-bounce">🎌</div>
         <div className="text-slate-500 font-bold animate-pulse text-lg">Memeriksa keamanan...</div>
+      </div>
+    );
+  }
+
+  // 🆕 Jika tidak login dan bukan halaman auth, jangan render apa pun (biarkan redirect)
+  if (!isAuthenticated && !isAuthPage) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center">
+        <div className="text-slate-500 font-bold animate-pulse text-lg">Mengarahkan ke Login...</div>
       </div>
     );
   }
