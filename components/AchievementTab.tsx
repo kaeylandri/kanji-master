@@ -21,18 +21,37 @@ export default function AchievementTab() {
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState<"kanji" | "kotoba">("kanji");
 
-  // Data user (dari localStorage)
-  const masteredKanji = JSON.parse(typeof window !== "undefined" ? localStorage.getItem("masteredKanji") || "[]" : "[]");
-  const masteredKotoba = JSON.parse(typeof window !== "undefined" ? localStorage.getItem("masteredKotoba") || "[]" : "[]");
+  // 🆕 PENGAMAN: Pastikan parsing JSON aman dan memberikan fallback array/object kosong
+  const safeParse = (key: string, fallback: any) => {
+    if (typeof window === "undefined") return fallback;
+    try {
+      const item = localStorage.getItem(key);
+      return item ? JSON.parse(item) : fallback;
+    } catch (e) {
+      return fallback;
+    }
+  };
+
+  // Data user (dari localStorage dengan pengaman)
+  const masteredKanji = safeParse("masteredKanji", []);
+  const masteredKotoba = safeParse("masteredKotoba", []);
   
-  const kanjiStats = JSON.parse(typeof window !== "undefined" ? localStorage.getItem("kanjiAchievements") || "{}" : "{}");
-  const kotobaStats = JSON.parse(typeof window !== "undefined" ? localStorage.getItem("kotobaExamStats") || "{}" : "{}");
-  const unlockedModes = [...(kanjiStats.unlocked || []), ...(kotobaStats.unlocked || [])];
+  const kanjiStats = safeParse("kanjiAchievements", {});
+  const kotobaStats = safeParse("kotobaExamStats", {});
+  
+  // 🆕 PENGAMAN: Pastikan unlocked selalu array sebelum di-spread
+  const unlockedModes = [
+    ...(Array.isArray(kanjiStats.unlocked) ? kanjiStats.unlocked : []), 
+    ...(Array.isArray(kotobaStats.unlocked) ? kotobaStats.unlocked : [])
+  ];
 
   useEffect(() => {
     const fetchClaimed = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        setLoading(false);
+        return;
+      }
       const { data } = await supabase.from('achievement_rewards').select('achievement_id').eq('user_id', user.id);
       if (data) setClaimed(data.map(d => d.achievement_id));
       setLoading(false);
@@ -127,6 +146,9 @@ export default function AchievementTab() {
       ) : (
         <div className="space-y-4">
           {achievementsToShow.map((ach) => {
+            // 🆕 PENGAMAN: Pastikan ach dan ach.id ada sebelum diproses
+            if (!ach || !ach.id) return null;
+
             const progress = checkProgress(ach);
             const isUnlocked = progress === 100;
             const isClaimed = claimed.includes(ach.id);

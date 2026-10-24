@@ -6,12 +6,17 @@ export async function syncDataToDatabase() {
   if (!user) return;
 
   try {
-    // === 1. AMBIL DATA DARI DATABASE ===
-    const { data: dbProfile } = await supabase
+    // === 1. AMBIL DATA DARI DATABASE (Sumber Kebenaran) ===
+    const { data: dbProfile, error: dbError } = await supabase
       .from('profiles')
-      .select('total_exp, sakura_coins, current_streak, longest_streak')
+      .select('total_exp, sakura_coins, current_streak, longest_streak, username, avatar_url, bio')
       .eq('id', user.id)
       .single();
+
+    if (dbError || !dbProfile) {
+      console.error("Gagal mengambil profil dari DB:", dbError);
+      return;
+    }
 
     // === 2. AMBIL DATA DARI LOCALSTORAGE ===
     const localMasteredKanji = JSON.parse(localStorage.getItem("masteredKanji") || "[]");
@@ -20,41 +25,56 @@ export async function syncDataToDatabase() {
     const userProfile = JSON.parse(localStorage.getItem("userProfile") || "{}");
     const missions = JSON.parse(localStorage.getItem("kanjiMaster.missions.v1") || "{}");
     const streak = JSON.parse(localStorage.getItem("kanjiMaster.streak.v1") || "{}");
-    
-    // === 3. TENTUKAN DATA FINAL (Local vs DB) ===
-    const finalExp = Math.max(dbProfile?.total_exp || 0, missions.exp || 0);
-    const finalCoins = Math.max(dbProfile?.sakura_coins || 0, missions.coins || 0);
-    const finalStreak = Math.max(dbProfile?.current_streak || 0, streak.currentStreak || 0);
 
-    // === 4. UPDATE PROFIL DI DATABASE ===
+    // === 3. TENTUKAN DATA FINAL (Database Menang!) ===
+    // Kita ambil nilai TERBESAR antara DB dan LocalStorage.
+    // Jika LocalStorage kosong (0), maka nilai DB yang dipakai.
+    const finalExp = Math.max(dbProfile.total_exp || 0, missions.exp || 0);
+    const finalCoins = Math.max(dbProfile.sakura_coins || 0, missions.coins || 0);
+    const finalStreak = Math.max(dbProfile.current_streak || 0, streak.currentStreak || 0);
+    const finalLongestStreak = Math.max(dbProfile.longest_streak || 0, streak.longestStreak || 0);
+
+    // 🆕 PROFIL: Jika local kosong, PASTI pakai punya DB. Jangan pernah kirim null ke DB!
+    const finalUsername = userProfile.name || dbProfile.username;
+    const finalAvatar = userProfile.avatar || dbProfile.avatar_url;
+    const finalBio = userProfile.bio !== undefined && userProfile.bio !== "" ? userProfile.bio : dbProfile.bio;
+
+    // === 4. UPDATE DATABASE (Hanya jika data local lebih baru, atau untuk sinkronisasi nama) ===
     await supabase.from('profiles').update({
       total_exp: finalExp,
       sakura_coins: finalCoins,
       current_streak: finalStreak,
-      longest_streak: Math.max(dbProfile?.longest_streak || 0, streak.longestStreak || 0),
-      avatar_url: userProfile.avatar || null,
-      username: userProfile.name || undefined,
-      bio: userProfile.bio || undefined,
+      longest_streak: finalLongestStreak,
+      username: finalUsername,
+      avatar_url: finalAvatar,
+      bio: finalBio,
     }).eq('id', user.id);
 
-    // === 5. UPDATE LOCALSTORAGE DENGAN DATA DARI DB (jika DB lebih tinggi) ===
-    if (dbProfile) {
-      const updatedMissions = {
-        ...missions,
-        exp: Math.max(missions.exp || 0, dbProfile.total_exp),
-        coins: Math.max(missions.coins || 0, dbProfile.sakura_coins),
-      };
-      localStorage.setItem("kanjiMaster.missions.v1", JSON.stringify(updatedMissions));
+    // === 5. PAKSA LOCALSTORAGE MENGGUNAKAN DATA DARI DATABASE ===
+    // Ini akan memperbaiki tampilan UI yang error / kosong.
+    const updatedMissions = {
+      ...missions,
+      exp: finalExp,
+      coins: finalCoins,
+    };
+    localStorage.setItem("kanjiMaster.missions.v1", JSON.stringify(updatedMissions));
 
-      const updatedStreak = {
-        ...streak,
-        currentStreak: Math.max(streak.currentStreak || 0, dbProfile.current_streak),
-        longestStreak: Math.max(streak.longestStreak || 0, dbProfile.longest_streak),
-      };
-      localStorage.setItem("kanjiMaster.streak.v1", JSON.stringify(updatedStreak));
-    }
+    const updatedStreak = {
+      ...streak,
+      currentStreak: finalStreak,
+      longestStreak: finalLongestStreak,
+    };
+    localStorage.setItem("kanjiMaster.streak.v1", JSON.stringify(updatedStreak));
 
-    // === 6. SINKRONISASI HAFALAN ===
+    const updatedProfile = {
+      ...userProfile,
+      name: finalUsername,
+      avatar: finalAvatar,
+      bio: finalBio,
+    };
+    localStorage.setItem("userProfile", JSON.stringify(updatedProfile));
+
+    // === 6. SINKRONISASI HAFALAN (KANJI & KOTOBA) ===
     const { data: existingProgress } = await supabase
       .from('user_progress')
       .select('item_type, item_id')
@@ -79,13 +99,12 @@ export async function syncDataToDatabase() {
       await supabase.from('user_progress').upsert(progressData, { onConflict: 'user_id,item_type,item_id' });
     }
 
-    // === 7. UPDATE LOCALSTORAGE DENGAN DATA DARI DB ===
     const allKanjiFromDB = Array.from(new Set([...existingKanji, ...newKanji]));
     const allKotobaFromDB = Array.from(new Set([...existingKotoba, ...newKotoba]));
     localStorage.setItem("masteredKanji", JSON.stringify(allKanjiFromDB));
     localStorage.setItem("masteredKotoba", JSON.stringify(allKotobaFromDB));
 
-    // === 8. SINKRONISASI ACHIEVEMENT ===
+    // === 7. SINKRONISASI ACHIEVEMENT ===
     const kanjiStats = JSON.parse(localStorage.getItem("kanjiAchievements") || "{}");
     const kotobaStats = JSON.parse(localStorage.getItem("kotobaExamStats") || "{}");
     const allUnlocked = Array.from(new Set([...(kanjiStats.unlocked || []), ...(kotobaStats.unlocked || [])]));
@@ -99,10 +118,10 @@ export async function syncDataToDatabase() {
       await supabase.from('user_achievements').insert(achData);
     }
 
-    // Dispatch event agar UI update
+    // Picu event agar UI langsung berubah tanpa reload
     window.dispatchEvent(new Event("missionUpdated"));
     window.dispatchEvent(new Event("streakUpdated"));
-
+    
   } catch (err) {
     console.error("Sync error:", err);
   }

@@ -9,6 +9,7 @@ import { getMissionsState } from "@/utils/missionEngine";
 import { getStreakData } from "@/utils/streakEngine";
 import AppLayout from "@/components/AppLayout";
 import { supabase } from "@/utils/supabase";
+import { useRouter } from "next/navigation"; // 🆕 Import useRouter untuk redirect
 
 function getTitle(mastered: number) {
   if (mastered >= 462) return { name: "Kanji Grandmaster", subtitle: "Ultimate Achievement", color: "from-yellow-400 to-amber-600", emoji: "👑" };
@@ -20,6 +21,7 @@ function getTitle(mastered: number) {
 }
 
 export default function ProfilPage() {
+  const router = useRouter(); // 🆕 Inisialisasi router
   const [masteredKanji, setMasteredKanji] = useState<number[]>([]);
   const [masteredKotoba, setMasteredKotoba] = useState<number[]>([]);
   const [uniqueKotobaAnswered, setUniqueKotobaAnswered] = useState<number[]>([]);
@@ -48,6 +50,18 @@ export default function ProfilPage() {
 
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState(profile);
+
+  // 🆕 Fungsi Logout
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+      // Opsional: bersihkan localStorage jika ingin benar-benar fresh
+      // localStorage.clear(); 
+      router.push("/login");
+    } catch (error) {
+      console.error("Gagal logout:", error);
+    }
+  };
 
   useEffect(() => {
     const loadStreak = () => setStreak(getStreakData());
@@ -279,7 +293,7 @@ export default function ProfilPage() {
                 <>
                   <p className="text-slate-600 max-w-lg mx-auto mb-4">{profile.bio}</p>
                   
-                  <div className="max-w-sm mx-auto bg-slate-50 rounded-xl p-3 border border-slate-200 mb-4">
+                  <div className="max-w-sm mx-auto bg-slate-50 rounded-xl p-3 border border-slate-200 mb-6">
                     <div className="flex justify-between text-xs font-bold text-slate-500 mb-2">
                       <span>EXP: {userExp}</span>
                       <span>Next Level</span>
@@ -289,12 +303,22 @@ export default function ProfilPage() {
                     </div>
                   </div>
 
-                  <button 
-                    onClick={() => window.location.href = '/update-password'} 
-                    className="text-sm text-blue-600 font-bold hover:underline flex items-center justify-center gap-1 mx-auto"
-                  >
-                    🔑 Ganti Password
-                  </button>
+                  {/* 🆕 TOMBOL AKSI (GANTI PASSWORD & LOGOUT) */}
+                  <div className="flex items-center justify-center gap-4 sm:gap-6">
+                    <button 
+                      onClick={() => window.location.href = '/update-password'} 
+                      className="text-sm text-blue-600 font-bold hover:underline flex items-center gap-1"
+                    >
+                      🔑 Ganti Password
+                    </button>
+                    <span className="text-slate-300">|</span>
+                    <button 
+                      onClick={handleLogout} 
+                      className="text-sm text-red-500 font-bold hover:underline flex items-center gap-1"
+                    >
+                      🚪 Logout
+                    </button>
+                  </div>
                 </>
               )}
             </div>

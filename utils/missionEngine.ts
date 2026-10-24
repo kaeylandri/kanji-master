@@ -2,7 +2,7 @@
 import { MissionDefinition, MissionProgress, MissionPeriod } from "@/data/missions/types";
 import { MISSIONS } from "@/data/missions/config";
 import { getCurrentMultiplier } from "./luckyEngine";
-import { supabase } from "./supabase"; // 🆕 Import Supabase
+import { supabase } from "./supabase";
 
 // Mendapatkan kunci periode (Harian / Mingguan)
 export function getPeriodKey(period: MissionPeriod) {
@@ -22,17 +22,26 @@ export function getPeriodKey(period: MissionPeriod) {
   return "month"; 
 }
 
-// Mendapatkan status misi dari localStorage
+// Mendapatkan status misi dari localStorage (DENGAN PENGAMAN)
 export function getMissionsState() {
   if (typeof window === "undefined") return null;
-  let state = JSON.parse(localStorage.getItem("kanjiMaster.missions.v1") || "null");
-  if (!state) {
-    state = { exp: 0, coins: 0, progress: {} };
+  
+  try {
+    let state = JSON.parse(localStorage.getItem("kanjiMaster.missions.v1") || "null");
+    if (!state || typeof state !== "object") {
+      state = { exp: 0, coins: 0, progress: {} };
+    }
+    // 🆕 Pastikan progress selalu objek
+    if (!state.progress || typeof state.progress !== "object") {
+      state.progress = {};
+    }
+    return state;
+  } catch (e) {
+    return { exp: 0, coins: 0, progress: {} };
   }
-  return state;
 }
 
-// 🆕 Fungsi untuk menambahkan hadiah (dipanggil dari server atau manual)
+// Fungsi untuk menambahkan hadiah
 export function addReward(baseExp: number, baseCoins: number) {
   const multiplier = getCurrentMultiplier();
   
@@ -41,14 +50,14 @@ export function addReward(baseExp: number, baseCoins: number) {
 
   const state = getMissionsState();
   if (state) {
-    state.exp += finalExp;
-    state.coins += finalCoins;
+    state.exp = (state.exp || 0) + finalExp;
+    state.coins = (state.coins || 0) + finalCoins;
     localStorage.setItem("kanjiMaster.missions.v1", JSON.stringify(state));
     window.dispatchEvent(new Event("missionUpdated"));
   }
 }
 
-// Menambah progres misi
+// Menambah progres misi (DENGAN PENGAMAN)
 export function addMissionProgress(eventType: string, amount: number = 1) {
   const state = getMissionsState();
   if (!state) return;
@@ -58,6 +67,7 @@ export function addMissionProgress(eventType: string, amount: number = 1) {
     if (mission.eventType !== eventType) return;
     const periodKey = getPeriodKey(mission.period);
     
+    // 🆕 Pastikan progress[mission.id] dan progress[mission.id][periodKey] ada
     if (!state.progress[mission.id]) state.progress[mission.id] = {};
     if (!state.progress[mission.id][periodKey]) {
       state.progress[mission.id][periodKey] = { progress: 0, isCompleted: false, isClaimed: false };
@@ -80,7 +90,7 @@ export function addMissionProgress(eventType: string, amount: number = 1) {
   }
 }
 
-// 🆕 Mengklaim hadiah misi (Async - Validasi di Server)
+// Mengklaim hadiah misi (Async - Validasi di Server)
 export async function claimReward(missionId: string) {
   const state = getMissionsState();
   if (!state) return false;
@@ -89,7 +99,7 @@ export async function claimReward(missionId: string) {
   if (!mission) return false;
 
   const periodKey = getPeriodKey(mission.period);
-  const currentProg = state.progress[missionId]?.[periodKey];
+  const currentProg = state.progress?.[missionId]?.[periodKey];
 
   // Validasi awal di client
   if (!currentProg || !currentProg.isCompleted || currentProg.isClaimed) {
@@ -100,7 +110,6 @@ export async function claimReward(missionId: string) {
   if (!user) return false;
 
   try {
-    // Panggil API Server untuk validasi & klaim
     const res = await fetch("/api/rewards/claim-mission", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -120,7 +129,7 @@ export async function claimReward(missionId: string) {
       return false;
     }
 
-    // Tandai sudah diklaim di localStorage
+    // Tandai sudah diklaim
     currentProg.isClaimed = true;
     localStorage.setItem("kanjiMaster.missions.v1", JSON.stringify(state));
     window.dispatchEvent(new Event("missionUpdated"));

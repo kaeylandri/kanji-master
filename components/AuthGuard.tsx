@@ -5,23 +5,20 @@ import { useEffect, useState, Suspense } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { supabase } from "@/utils/supabase";
 import { syncDataToDatabase } from "@/utils/syncEngine";
-import { checkStreakExpiry } from "@/utils/luckyEngine";
-import { getMissionsState } from "@/utils/missionEngine"; // 🆕
-import { getInventory } from "@/utils/luckyEngine"; // 🆕
-import { triggerToast } from "@/utils/toast"; // 🆕
+import { checkStreakExpiry, getInventory } from "@/utils/luckyEngine";
+import { getMissionsState } from "@/utils/missionEngine";
+import { triggerToast } from "@/utils/toast";
 
-// Pisahkan logika ke komponen internal
 function AuthGuardContent({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [isLoading, setIsLoading] = useState(true);
 
-  // 🆕 Fungsi untuk menjemput hadiah dari teman
+  // Fungsi untuk menjemput hadiah dari teman
   const claimGifts = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    // Ambil semua hadiah yang belum diklaim
     const { data: gifts } = await supabase
       .from('gifts')
       .select('*')
@@ -35,12 +32,9 @@ function AuthGuardContent({ children }: { children: React.ReactNode }) {
       for (const gift of gifts) {
         if (gift.item_type === 'coins') totalCoins += gift.amount;
         if (gift.item_type === 'freeze') totalFreeze += gift.amount;
-
-        // Tandai sudah diklaim
         await supabase.from('gifts').update({ is_claimed: true }).eq('id', gift.id);
       }
 
-      // Masukkan ke localStorage
       if (totalCoins > 0) {
         const ms = getMissionsState();
         if (ms) {
@@ -64,42 +58,55 @@ function AuthGuardContent({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const checkAuth = async () => {
+      // 🆕 Beri jeda sedikit agar Supabase sempat membaca token dari URL email
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
       const { data: { session } } = await supabase.auth.getSession();
       
-      // Tambahkan forgot-password dan update-password sebagai halaman publik
       const isAuthPage = 
         pathname === "/login" || 
         pathname === "/register" || 
         pathname === "/forgot-password" || 
         pathname === "/update-password";
 
+      // 🆕 LOGIKA BARU YANG LEBIH AMAN
       if (!session && !isAuthPage) {
-        // Jika belum login dan bukan di halaman publik, lempar ke login
+        // Belum login & bukan halaman publik -> Lempar ke login
         router.push("/login");
-      } else if (session && isAuthPage) {
-        // Jika sudah login tapi mencoba buka halaman login/register, lempar ke dashboard
-        // (Kecuali update-password, karena user yang login mungkin ingin ganti password)
-        if (pathname !== "/update-password") {
-          router.push("/");
-        }
+        // Jangan setIsLoading(false) di sini agar tidak flash konten sebelum redirect
+      } else if (session && isAuthPage && pathname !== "/update-password") {
+        // Sudah login tapi buka halaman login/register -> Lempar ke dashboard
+        router.push("/");
       } else {
+        // Jika ada session ATAU sedang di halaman update-password, matikan loading
         if (session) {
           checkStreakExpiry();
           syncDataToDatabase();
-          claimGifts(); // 🆕 Panggil fungsi klaim hadiah
+          claimGifts();
         }
-        setIsLoading(false);
+        setIsLoading(false); // 🆕 Pastikan ini terpanggil!
       }
     };
 
     checkAuth();
 
+    // 🆕 Dengarkan perubahan status (termasuk saat token reset password diproses)
     const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "SIGNED_OUT") router.push("/login");
-      if (event === "SIGNED_IN") {
-        checkStreakExpiry();
-        syncDataToDatabase();
-        claimGifts(); // 🆕 Panggil juga saat login
+      if (event === "SIGNED_OUT") {
+        router.push("/login");
+      }
+      
+      if (event === "SIGNED_IN" || event === "PASSWORD_RECOVERY") {
+        // Jika di halaman update-password, cukup matikan loading
+        if (pathname === "/update-password") {
+          setIsLoading(false);
+        } else {
+          // Jika di halaman lain, jalankan sinkronisasi
+          checkStreakExpiry();
+          syncDataToDatabase();
+          claimGifts();
+          setIsLoading(false);
+        }
       }
     });
 
@@ -118,7 +125,6 @@ function AuthGuardContent({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-// Bungkus dengan Suspense di komponen utama
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   return (
     <Suspense fallback={
