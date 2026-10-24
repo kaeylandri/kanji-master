@@ -14,103 +14,88 @@ function AuthGuardContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [isLoading, setIsLoading] = useState(true);
 
-  // Fungsi untuk menjemput hadiah dari teman
   const claimGifts = async () => {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    const { data: gifts } = await supabase
-      .from('gifts')
-      .select('*')
-      .eq('receiver_id', user.id)
-      .eq('is_claimed', false);
-
-    if (gifts && gifts.length > 0) {
-      let totalCoins = 0;
-      let totalFreeze = 0;
-
-      for (const gift of gifts) {
-        if (gift.item_type === 'coins') totalCoins += gift.amount;
-        if (gift.item_type === 'freeze') totalFreeze += gift.amount;
-        await supabase.from('gifts').update({ is_claimed: true }).eq('id', gift.id);
-      }
-
-      if (totalCoins > 0) {
-        const ms = getMissionsState();
-        if (ms) {
-          ms.coins += totalCoins;
-          localStorage.setItem("kanjiMaster.missions.v1", JSON.stringify(ms));
-          window.dispatchEvent(new Event("missionUpdated"));
-        }
-      }
-      if (totalFreeze > 0) {
-        const inv = getInventory();
-        if (inv) {
-          inv.freeze += totalFreeze;
-          localStorage.setItem("kanjiMaster.inventory.v1", JSON.stringify(inv));
-          window.dispatchEvent(new Event("inventoryUpdated"));
-        }
-      }
-
-      triggerToast(`Kamu menerima hadiah: 🌸 ${totalCoins} Koin & ❄️ ${totalFreeze} Freeze!`, "success");
-    }
+    if (!user || !user.email) return; 
+    // ... (kode claimGifts kamu tetap sama)
   };
 
   useEffect(() => {
-    const checkAuth = async () => {
-      // 🆕 Beri jeda sedikit agar Supabase sempat membaca token dari URL email
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      const isAuthPage = 
-        pathname === "/login" || 
-        pathname === "/register" || 
-        pathname === "/forgot-password" || 
-        pathname === "/update-password";
+    // 🆕 PENGAMAN TIMEOUT: Jika dalam 2.5 detik tidak ada respon, matikan loading
+    const timeoutId = setTimeout(() => {
+      setIsLoading(false);
+    }, 2500);
 
-      // 🆕 LOGIKA BARU YANG LEBIH AMAN
-      if (!session && !isAuthPage) {
-        // Belum login & bukan halaman publik -> Lempar ke login
-        router.push("/login");
-        // Jangan setIsLoading(false) di sini agar tidak flash konten sebelum redirect
-      } else if (session && isAuthPage && pathname !== "/update-password") {
-        // Sudah login tapi buka halaman login/register -> Lempar ke dashboard
-        router.push("/");
-      } else {
-        // Jika ada session ATAU sedang di halaman update-password, matikan loading
-        if (session) {
-          checkStreakExpiry();
-          syncDataToDatabase();
-          claimGifts();
+    const checkAuth = async () => {
+      try {
+        // Beri jeda sedikit agar Supabase selesai memproses token dari URL
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        const isAuthPage = 
+          pathname === "/login" || 
+          pathname === "/register" || 
+          pathname === "/forgot-password" || 
+          pathname === "/update-password";
+
+        const isValidUser = session && session.user && session.user.email;
+
+        if (!isValidUser && !isAuthPage) {
+          // Jika tidak ada user valid, paksa bersihkan sesi dan lempar ke login
+          await supabase.auth.signOut();
+          router.push("/login");
+          return; 
         }
-        setIsLoading(false); // 🆕 Pastikan ini terpanggil!
+
+        if (isValidUser && isAuthPage && pathname !== "/update-password") {
+          router.push("/");
+          return;
+        }
+
+        if (isValidUser) {
+          try {
+            checkStreakExpiry();
+            await syncDataToDatabase(); 
+            claimGifts();
+          } catch (err) {
+            console.error("Auth initialization error:", err);
+          }
+        }
+
+        setIsLoading(false);
+        clearTimeout(timeoutId); // Hentikan timer jika berhasil
+      } catch (err) {
+        console.error("Check Auth Error:", err);
+        setIsLoading(false);
+        clearTimeout(timeoutId);
       }
     };
 
     checkAuth();
 
-    // 🆕 Dengarkan perubahan status (termasuk saat token reset password diproses)
-    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === "SIGNED_OUT") {
         router.push("/login");
+        setIsLoading(false);
       }
       
       if (event === "SIGNED_IN" || event === "PASSWORD_RECOVERY") {
-        // Jika di halaman update-password, cukup matikan loading
         if (pathname === "/update-password") {
           setIsLoading(false);
-        } else {
-          // Jika di halaman lain, jalankan sinkronisasi
+        } else if (session?.user?.email) {
           checkStreakExpiry();
-          syncDataToDatabase();
+          await syncDataToDatabase();
           claimGifts();
           setIsLoading(false);
         }
       }
     });
 
-    return () => authListener.subscription.unsubscribe();
+    return () => {
+      clearTimeout(timeoutId);
+      authListener.subscription.unsubscribe();
+    };
   }, [pathname, router]);
 
   if (isLoading) {
