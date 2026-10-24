@@ -58,6 +58,7 @@ function LatihanKotobaContent() {
   const [finished, setFinished] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [isRunning, setIsRunning] = useState(true);
+  const [loading, setLoading] = useState(true);
 
   const [hintsLeft, setHintsLeft] = useState(3);
   const [wasHinted, setWasHinted] = useState(false);
@@ -68,12 +69,15 @@ function LatihanKotobaContent() {
 
   useEffect(() => {
     if (!kategori) return;
+    setLoading(true);
     
-    // 🆕 PERBAIKAN URL: Jika acak, ambil dari semua. Jika tidak, ambil dari kategori.
     const apiUrl = isRandomMode ? "/api/kotoba/semua" : `/api/kotoba/${encodeURIComponent(kategori)}`;
     
     fetch(apiUrl)
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error("Gagal ambil data");
+        return r.json();
+      })
       .then((data: Kotoba[]) => {
         if (data && data.length > 0) {
           if (isRandomMode) {
@@ -83,6 +87,11 @@ function LatihanKotobaContent() {
             setKotobaList(data);
           }
         }
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error("Gagal memuat kotoba:", err);
+        setLoading(false);
       });
 
     setInventory(getInventory());
@@ -128,7 +137,7 @@ function LatihanKotobaContent() {
     }
   };
 
-  if (!kotobaList.length) {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-emerald-50">
         <div className="text-emerald-600 text-xl animate-pulse">🌸 Memuat kotoba...</div>
@@ -136,9 +145,23 @@ function LatihanKotobaContent() {
     );
   }
 
+  if (kotobaList.length === 0) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-emerald-50 p-6 text-center">
+        <div className="text-6xl mb-4">🚧</div>
+        <h1 className="text-2xl font-bold text-emerald-900 mb-2">Data Kotoba Belum Tersedia</h1>
+        <p className="text-emerald-600 mb-6">Maaf, latihan ini belum bisa dimulai karena data kotoba masih kosong.</p>
+        <Link href={isRandomMode ? "/belajar/kotoba" : `/kotoba/kategori/${encodeURIComponent(kategori)}`} className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-bold shadow-md transition">
+          ← Kembali
+        </Link>
+      </div>
+    );
+  }
+
   if (finished) {
     const total = stats.correct + stats.wrong;
     const accuracy = total > 0 ? Math.round((stats.correct / total) * 100) : 0;
+    const backLink = isRandomMode ? "/belajar/kotoba" : `/kotoba/kategori/${encodeURIComponent(kategori)}`;
 
     return (
       <div className="min-h-screen bg-emerald-50 flex items-center justify-center p-6">
@@ -179,7 +202,7 @@ function LatihanKotobaContent() {
             >
               🔄 Ulangi Latihan
             </button>
-            <Link href={`/kotoba/kategori/${encodeURIComponent(kategori)}`} className="block w-full bg-white border-2 border-emerald-200 text-emerald-700 py-3 rounded-xl font-semibold transition">
+            <Link href={backLink} className="block w-full bg-white border-2 border-emerald-200 text-emerald-700 py-3 rounded-xl font-semibold transition">
               ← Kembali
             </Link>
           </div>
@@ -262,12 +285,13 @@ function LatihanKotobaContent() {
   };
 
   const progress = ((index + 1) / kotobaList.length) * 100;
+  const backLink = isRandomMode ? "/belajar/kotoba" : `/kotoba/kategori/${encodeURIComponent(kategori)}`;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-100 relative overflow-hidden">
       <div className="relative z-10 max-w-2xl mx-auto px-6 py-8 flex flex-col min-h-screen">
         <header className="flex justify-between items-center mb-6">
-          <Link href={`/kotoba/kategori/${encodeURIComponent(kategori)}`} className="text-emerald-700 font-semibold transition">
+          <Link href={backLink} className="text-emerald-700 font-semibold transition">
             ← Kembali
           </Link>
           <div className="flex items-center gap-3 text-sm">

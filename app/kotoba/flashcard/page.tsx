@@ -66,26 +66,9 @@ export default function SmartFlashcardKotobaPage() {
     window.addEventListener("inventoryUpdated", () => setInventory(getInventory()));
   }, []);
 
-  const startPracticeMode = async () => {
-    try {
-      setLoading(true);
-      // 🆕 PERBAIKAN URL: Pastikan menggunakan endpoint yang benar
-      const res = await fetch("/api/kotoba/semua");
-      if (!res.ok) throw new Error("Gagal ambil data");
-      
-      const data: Kotoba[] = await res.json();
-      
-      const randomKotoba = data.sort(() => 0.5 - Math.random()).slice(0, 10);
-      
-      setKotobaList(randomKotoba);
-      setPracticeMode(true);
-      setCurrentIndex(0);
-      setLoading(false);
-    } catch (err) {
-      console.error("Gagal memuat latihan bebas:", err);
-      triggerToast("Gagal memuat data latihan.", "error");
-      setLoading(false);
-    }
+  // 🆕 PERBAIKAN: Tombol Latihan Bebas langsung redirect ke halaman latihan acak
+  const startPracticeMode = () => {
+    router.push("/kotoba/latihan/semua?acak=1");
   };
 
   useEffect(() => {

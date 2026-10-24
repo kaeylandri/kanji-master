@@ -55,11 +55,13 @@ function LatihanContent() {
     if (!slug) return;
     setLoading(true);
     
-    // 🆕 PERBAIKAN URL: Jika acak, ambil dari semua. Jika tidak, ambil dari kategori.
     const apiUrl = isRandomMode ? "/api/categories/semua/kanji" : `/api/categories/${slug}/kanji`;
     
     fetch(apiUrl)
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error("Gagal ambil data");
+        return r.json();
+      })
       .then((data: Kanji[]) => {
         if (data && data.length > 0) {
           if (isRandomMode) {
@@ -133,7 +135,7 @@ function LatihanContent() {
         <div className="text-6xl mb-4">🚧</div>
         <h1 className="text-2xl font-bold text-blue-900 mb-2">Data Kanji Belum Tersedia</h1>
         <p className="text-blue-600 mb-6">Maaf, latihan ini belum bisa dimulai karena data kanji masih kosong.</p>
-        <Link href={`/category/${slug}`} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold shadow-md transition">
+        <Link href={isRandomMode ? "/belajar/kanji" : `/category/${slug}`} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold shadow-md transition">
           ← Kembali ke Persiapan
         </Link>
       </div>
@@ -173,6 +175,7 @@ function LatihanContent() {
 
     const total = stats.correct + stats.wrong;
     const accuracy = total > 0 ? Math.round((stats.correct / total) * 100) : 0;
+    const backLink = isRandomMode ? "/belajar/kanji" : `/category/${slug}`;
 
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-100 relative overflow-hidden flex items-center justify-center p-6">
@@ -237,7 +240,7 @@ function LatihanContent() {
             >
               🔄 Ulangi Latihan
             </button>
-            <Link href={`/category/${slug}`} className="block w-full bg-white border-2 border-blue-200 hover:bg-blue-50 text-blue-700 py-3 rounded-xl font-semibold transition">
+            <Link href={backLink} className="block w-full bg-white border-2 border-blue-200 hover:bg-blue-50 text-blue-700 py-3 rounded-xl font-semibold transition">
               ← Kembali ke Persiapan
             </Link>
           </div>
@@ -337,6 +340,7 @@ function LatihanContent() {
   };
 
   const progress = ((index + 1) / kanjiList.length) * 100;
+  const backLink = isRandomMode ? "/belajar/kanji" : `/category/${slug}`;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-100 relative overflow-hidden">
@@ -347,7 +351,7 @@ function LatihanContent() {
 
       <div className="relative z-10 max-w-2xl mx-auto px-6 py-8 flex flex-col min-h-screen">
         <header className="flex justify-between items-center mb-6">
-          <Link href={`/category/${slug}`} className="flex items-center gap-2 text-blue-700 hover:text-blue-900 font-semibold transition">
+          <Link href={backLink} className="flex items-center gap-2 text-blue-700 hover:text-blue-900 font-semibold transition">
             <span>←</span> <span>Kembali</span>
           </Link>
           <div className="flex items-center gap-3 text-sm">
