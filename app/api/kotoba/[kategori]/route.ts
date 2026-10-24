@@ -4,7 +4,7 @@ import kotobaData from "@/data/kotoba.json";
 
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ kategori: string }> } // 🆕 Next.js 15/16 params is Promise
+  { params }: { params: Promise<{ kategori: string }> }
 ) {
   try {
     const resolvedParams = await params;
@@ -15,8 +15,6 @@ export async function GET(
     }
 
     const decodedKategori = decodeURIComponent(kategori);
-    
-    // Filter data Kotoba berdasarkan kategori
     const filteredKotoba = kotobaData.filter((k: any) => k.category === decodedKategori);
     
     return NextResponse.json(filteredKotoba);
