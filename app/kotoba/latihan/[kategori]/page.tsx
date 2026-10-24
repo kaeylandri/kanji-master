@@ -68,14 +68,14 @@ function LatihanKotobaContent() {
   const [revealTimeLeft, setRevealTimeLeft] = useState(0);
 
   useEffect(() => {
-    if (!kategori) return;
+    // 🆕 HAPUS pengecekan !kategori di sini karena mode acak tidak butuh kategori
     setLoading(true);
     
     const apiUrl = isRandomMode ? "/api/kotoba/semua" : `/api/kotoba/${encodeURIComponent(kategori)}`;
     
     fetch(apiUrl)
       .then((r) => {
-        if (!r.ok) throw new Error("Gagal ambil data");
+        if (!r.ok) throw new Error(`Gagal ambil data dari ${apiUrl}`);
         return r.json();
       })
       .then((data: Kotoba[]) => {
@@ -86,16 +86,23 @@ function LatihanKotobaContent() {
           } else {
             setKotobaList(data);
           }
+        } else {
+          setKotobaList([]); // Pastikan array kosong jika data kosong
         }
         setLoading(false);
       })
       .catch((err) => {
         console.error("Gagal memuat kotoba:", err);
+        setKotobaList([]); // Set kosong agar memicu tampilan error
         setLoading(false);
       });
 
     setInventory(getInventory());
     window.addEventListener("inventoryUpdated", () => setInventory(getInventory()));
+    
+    return () => {
+      window.removeEventListener("inventoryUpdated", () => setInventory(getInventory()));
+    }
   }, [kategori, isRandomMode]);
 
   useEffect(() => {
@@ -146,12 +153,13 @@ function LatihanKotobaContent() {
   }
 
   if (kotobaList.length === 0) {
+    const backLink = isRandomMode ? "/belajar/kotoba" : `/kotoba/kategori/${encodeURIComponent(kategori)}`;
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-emerald-50 p-6 text-center">
         <div className="text-6xl mb-4">🚧</div>
         <h1 className="text-2xl font-bold text-emerald-900 mb-2">Data Kotoba Belum Tersedia</h1>
-        <p className="text-emerald-600 mb-6">Maaf, latihan ini belum bisa dimulai karena data kotoba masih kosong.</p>
-        <Link href={isRandomMode ? "/belajar/kotoba" : `/kotoba/kategori/${encodeURIComponent(kategori)}`} className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-bold shadow-md transition">
+        <p className="text-emerald-600 mb-6">Maaf, latihan ini belum bisa dimulai karena data kotoba masih kosong. Pastikan API `/api/kotoba/semua` sudah berfungsi.</p>
+        <Link href={backLink} className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-bold shadow-md transition">
           ← Kembali
         </Link>
       </div>

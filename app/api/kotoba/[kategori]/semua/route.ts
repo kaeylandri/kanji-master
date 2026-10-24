@@ -4,9 +4,8 @@ import kotobaData from "@/data/kotoba.json";
 
 export async function GET() {
   try {
-    // 🆕 Pastikan kotobaData adalah array
+    // Pastikan data array
     if (!kotobaData || !Array.isArray(kotobaData)) {
-      console.error("Kotoba data tidak valid");
       return NextResponse.json({ error: "Data kotoba tidak valid" }, { status: 500 });
     }
 
