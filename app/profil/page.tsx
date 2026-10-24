@@ -27,6 +27,7 @@ export default function ProfilPage() {
   const [uniqueKotobaAnswered, setUniqueKotobaAnswered] = useState<number[]>([]);
   const [kotobaList, setKotobaList] = useState<any[]>([]);
   const [kanjiList, setKanjiList] = useState<any[]>([]);
+  const [isLoadingKanji, setIsLoadingKanji] = useState(true); // 🆕 Loading state untuk kanji favorit
   
   const [profile, setProfile] = useState({
     name: "Pengguna Baru",
@@ -77,6 +78,10 @@ export default function ProfilPage() {
 
       const savedProfile = safeParse("userProfile", null);
       if (savedProfile) {
+        // Pastikan favoriteKanjiIds selalu array
+        if (!Array.isArray(savedProfile.favoriteKanjiIds)) {
+          savedProfile.favoriteKanjiIds = [];
+        }
         setProfile(savedProfile);
         setEditForm(savedProfile);
       }
@@ -104,7 +109,16 @@ export default function ProfilPage() {
       loadStreak();
       window.addEventListener("streakUpdated", loadStreak);
 
-      fetch("/api/categories/semua/kanji").then(res => res.json()).then(data => setKanjiList(data)).catch(() => {});
+      // 🆕 Fetch Kanji dengan Loading State
+      setIsLoadingKanji(true);
+      fetch("/api/categories/semua/kanji")
+        .then(res => res.json())
+        .then(data => {
+          setKanjiList(data);
+          setIsLoadingKanji(false);
+        })
+        .catch(() => setIsLoadingKanji(false));
+
       fetch("/api/kotoba/semua").then(res => res.json()).then(data => setKotobaList(data)).catch(() => {});
 
       // Ambil Daftar Teman (Hanya yang accepted)
@@ -134,6 +148,7 @@ export default function ProfilPage() {
         
     } catch (e) {
       console.error("Error loading profile data:", e);
+      setIsLoadingKanji(false);
     }
 
     return () => {
@@ -288,13 +303,20 @@ export default function ProfilPage() {
                   </div>
                   <div>
                     <label className="text-sm font-bold text-slate-600 block mb-2">Pilih 4 Kanji Favorit</label>
-                    <div className="max-h-40 overflow-y-auto bg-white border border-slate-300 rounded-lg p-2 grid grid-cols-4 sm:grid-cols-6 gap-2">
-                      {kanjiList.map(k => (
-                        <button key={k.id} onClick={() => toggleFavorite(k.id)} className={`p-2 text-xl font-bold rounded-lg border ${(editForm.favoriteKanjiIds || []).includes(k.id) ? "border-blue-500 bg-blue-50 text-blue-600" : "border-slate-200 hover:bg-slate-100 text-slate-600"}`}>
-                          {k.character}
-                        </button>
-                      ))}
-                    </div>
+                    {/* 🆕 TAMPILKAN LOADING JIKA KANJI BELUM SIAP */}
+                    {isLoadingKanji ? (
+                      <div className="text-center py-4 text-slate-400 animate-pulse text-sm">Memuat daftar kanji...</div>
+                    ) : kanjiList.length === 0 ? (
+                      <div className="text-center py-4 text-red-400 text-sm">Gagal memuat kanji. Coba refresh.</div>
+                    ) : (
+                      <div className="max-h-40 overflow-y-auto bg-white border border-slate-300 rounded-lg p-2 grid grid-cols-4 sm:grid-cols-6 gap-2">
+                        {kanjiList.map(k => (
+                          <button key={k.id} onClick={() => toggleFavorite(k.id)} className={`p-2 text-xl font-bold rounded-lg border ${(editForm.favoriteKanjiIds || []).includes(k.id) ? "border-blue-500 bg-blue-50 text-blue-600" : "border-slate-200 hover:bg-slate-100 text-slate-600"}`}>
+                            {k.character}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <button onClick={saveProfile} className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-6 rounded-lg shadow transition w-full">💾 Simpan Profil</button>
                 </div>

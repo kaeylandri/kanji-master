@@ -59,13 +59,25 @@ export default function AchievementTab() {
     fetchClaimed();
   }, []);
 
-  // 🆕 handleClaim memanggil API Server
+  // 🆕 handleClaim dengan Optimistic UI (Tanpa Delay)
   const handleClaim = async (achId: string, type: string, isTheEnd: boolean = false) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
     const reward = isTheEnd ? REWARDS.the_end : REWARDS[type as keyof typeof REWARDS] || REWARDS.general;
 
+    // 1. Ubah tampilan jadi "Diklaim" seketika (Optimistic UI)
+    setClaimed((prev) => [...prev, achId]);
+
+    // 2. Susun pesan Toast
+    let toastMsg = `Hadiah diklaim! +${reward.exp} XP, +${reward.coins} 🌸`;
+    if (reward.hint > 0) toastMsg += `, +${reward.hint} 💡`;
+    if (reward.freeze > 0) toastMsg += `, +${reward.freeze} ❄️`;
+    if (reward.reveal > 0) toastMsg += `, +${reward.reveal} 🪄`;
+    
+    triggerToast(isTheEnd ? `🌌 THE END TERCAPAI! ${toastMsg}` : toastMsg, "success");
+
+    // 3. Proses API di belakang layar
     try {
       const res = await fetch("/api/rewards/claim-achievement", {
         method: "POST",
@@ -84,24 +96,20 @@ export default function AchievementTab() {
       const data = await res.json();
 
       if (!res.ok) {
-        return triggerToast(data.error || "Gagal klaim", "error");
+        // Jika gagal, kembalikan tombol ke semula dan tampilkan error
+        setClaimed((prev) => prev.filter(id => id !== achId));
+        triggerToast(data.error || "Gagal klaim", "error");
+        return;
       }
 
-      // Susun pesan Toast
-      let toastMsg = `Hadiah diklaim! +${reward.exp} XP, +${reward.coins} 🌸`;
-      if (reward.hint > 0) toastMsg += `, +${reward.hint} 💡`;
-      if (reward.freeze > 0) toastMsg += `, +${reward.freeze} ❄️`;
-      if (reward.reveal > 0) toastMsg += `, +${reward.reveal} 🪄`;
-      
-      triggerToast(isTheEnd ? `🌌 THE END TERCAPAI! ${toastMsg}` : toastMsg, "success");
-      setClaimed([...claimed, achId]);
-
-      // Sinkronisasi ulang ke localStorage (opsional, agar cache terbaru)
+      // Sinkronisasi ulang event agar Header (EXP/Koin) terupdate
       window.dispatchEvent(new Event("missionUpdated"));
       window.dispatchEvent(new Event("inventoryUpdated"));
 
     } catch (err) {
       console.error(err);
+      // Jika jaringan error, kembalikan tombol
+      setClaimed((prev) => prev.filter(id => id !== achId));
       triggerToast("Terjadi kesalahan jaringan.", "error");
     }
   };
