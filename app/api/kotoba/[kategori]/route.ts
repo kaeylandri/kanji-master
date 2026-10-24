@@ -4,18 +4,24 @@ import kotobaData from "@/data/kotoba.json";
 
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ kategori: string }> }
+  { params }: { params: { kategori: string } } // 🆕 Hapus Promise
 ) {
   try {
-    const { kategori } = await params;
+    // 🆕 Tidak perlu await params
+    const kategori = params.kategori;
+    
+    if (!kategori) {
+      return NextResponse.json({ error: "Kategori tidak ditemukan" }, { status: 400 });
+    }
+
     const decodedKategori = decodeURIComponent(kategori);
     
     // Filter data Kotoba berdasarkan kategori
     const filteredKotoba = kotobaData.filter((k: any) => k.category === decodedKategori);
     
     return NextResponse.json(filteredKotoba);
-  } catch (err) {
+  } catch (err: any) {
     console.error("API kotoba per kategori error:", err);
-    return NextResponse.json({ error: "Internal error" }, { status: 500 });
+    return NextResponse.json({ error: err.message || "Internal error" }, { status: 500 });
   }
 }
