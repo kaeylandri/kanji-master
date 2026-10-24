@@ -22,7 +22,7 @@ export function getPeriodKey(period: MissionPeriod) {
   return "month"; 
 }
 
-// Mendapatkan status misi dari localStorage (DENGAN PENGAMAN)
+// Mendapatkan status misi dari localStorage
 export function getMissionsState() {
   if (typeof window === "undefined") return null;
   
@@ -31,7 +31,6 @@ export function getMissionsState() {
     if (!state || typeof state !== "object") {
       state = { exp: 0, coins: 0, progress: {} };
     }
-    // 🆕 Pastikan progress selalu objek
     if (!state.progress || typeof state.progress !== "object") {
       state.progress = {};
     }
@@ -57,7 +56,7 @@ export function addReward(baseExp: number, baseCoins: number) {
   }
 }
 
-// Menambah progres misi (DENGAN PENGAMAN)
+// Menambah progres misi
 export function addMissionProgress(eventType: string, amount: number = 1) {
   const state = getMissionsState();
   if (!state) return;
@@ -67,7 +66,6 @@ export function addMissionProgress(eventType: string, amount: number = 1) {
     if (mission.eventType !== eventType) return;
     const periodKey = getPeriodKey(mission.period);
     
-    // 🆕 Pastikan progress[mission.id] dan progress[mission.id][periodKey] ada
     if (!state.progress[mission.id]) state.progress[mission.id] = {};
     if (!state.progress[mission.id][periodKey]) {
       state.progress[mission.id][periodKey] = { progress: 0, isCompleted: false, isClaimed: false };
@@ -90,7 +88,7 @@ export function addMissionProgress(eventType: string, amount: number = 1) {
   }
 }
 
-// Mengklaim hadiah misi (Async - Validasi di Server)
+// 🆕 Mengklaim hadiah misi (Optimistic UI + Sinkronisasi)
 export async function claimReward(missionId: string) {
   const state = getMissionsState();
   if (!state) return false;
@@ -99,15 +97,34 @@ export async function claimReward(missionId: string) {
   if (!mission) return false;
 
   const periodKey = getPeriodKey(mission.period);
-  const currentProg = state.progress?.[missionId]?.[periodKey];
+  
+  // Pengaman jika progress belum ada
+  if (!state.progress[missionId]) state.progress[missionId] = {};
+  if (!state.progress[missionId][periodKey]) {
+    state.progress[missionId][periodKey] = { progress: 0, isCompleted: false, isClaimed: false };
+  }
+  
+  const currentProg = state.progress[missionId][periodKey];
 
-  // Validasi awal di client
-  if (!currentProg || !currentProg.isCompleted || currentProg.isClaimed) {
+  // Validasi awal
+  if (!currentProg.isCompleted || currentProg.isClaimed) {
     return false;
   }
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return false;
+
+  // 🆕 SIMPAN STATE LAMA (Rollback)
+  const oldExp = state.exp || 0;
+  const oldCoins = state.coins || 0;
+
+  // 🆕 OPTIMISTIC UI: Langsung tambah EXP & Koin di tampilan
+  currentProg.isClaimed = true;
+  state.exp = oldExp + (mission.rewardExp || 0);
+  state.coins = oldCoins + (mission.rewardCoins || 0);
+
+  localStorage.setItem("kanjiMaster.missions.v1", JSON.stringify(state));
+  window.dispatchEvent(new Event("missionUpdated")); // Picu update Header
 
   try {
     const res = await fetch("/api/rewards/claim-mission", {
@@ -125,18 +142,25 @@ export async function claimReward(missionId: string) {
     const data = await res.json();
 
     if (!res.ok) {
+      // 🆕 ROLLBACK JIKA GAGAL
       console.error("Server error:", data.error);
+      currentProg.isClaimed = false;
+      state.exp = oldExp;
+      state.coins = oldCoins;
+      localStorage.setItem("kanjiMaster.missions.v1", JSON.stringify(state));
+      window.dispatchEvent(new Event("missionUpdated"));
       return false;
     }
 
-    // Tandai sudah diklaim
-    currentProg.isClaimed = true;
-    localStorage.setItem("kanjiMaster.missions.v1", JSON.stringify(state));
-    window.dispatchEvent(new Event("missionUpdated"));
-    
     return true;
   } catch (err) {
     console.error("Fetch error:", err);
+    // 🆕 ROLLBACK JIKA ERROR JARINGAN
+    currentProg.isClaimed = false;
+    state.exp = oldExp;
+    state.coins = oldCoins;
+    localStorage.setItem("kanjiMaster.missions.v1", JSON.stringify(state));
+    window.dispatchEvent(new Event("missionUpdated"));
     return false;
   }
 }

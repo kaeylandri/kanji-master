@@ -15,7 +15,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Data tidak lengkap" }, { status: 400 });
     }
 
-    // 1. Cek apakah misi sudah diklaim
+    // 1. Cek klaim ganda
     const { data: existingClaim } = await supabaseAdmin
       .from('mission_claims')
       .select('id')
@@ -42,7 +42,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Gagal mencatat klaim: " + insertError.message }, { status: 500 });
     }
 
-    // 3. Update profil (Gunakan nama kolom yang KONSISTEN: total_exp & sakura_coins)
+    // 3. Update profil
     const { data: profile } = await supabaseAdmin
       .from('profiles')
       .select('total_exp, sakura_coins')

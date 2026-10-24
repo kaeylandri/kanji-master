@@ -6,7 +6,6 @@ export async function syncDataToDatabase() {
   if (!user) return;
 
   try {
-    // === 1. AMBIL DATA DARI DATABASE ===
     const { data: dbProfile, error: dbError } = await supabase
       .from('profiles')
       .select('total_exp, sakura_coins, current_streak, longest_streak, username, avatar_url, bio')
@@ -18,29 +17,25 @@ export async function syncDataToDatabase() {
       return;
     }
 
-    // === 2. AMBIL DATA DARI LOCALSTORAGE ===
     const localMasteredKanji = JSON.parse(localStorage.getItem("masteredKanji") || "[]");
     const localMasteredKotoba = JSON.parse(localStorage.getItem("masteredKotoba") || "[]");
     const uniqueKotoba = JSON.parse(localStorage.getItem("uniqueKotobaAnswered") || "[]");
-    
-    // 🆕 Ambil userProfile lengkap (termasuk favoriteKanjiIds)
     const userProfile = JSON.parse(localStorage.getItem("userProfile") || "{}");
     const missions = JSON.parse(localStorage.getItem("kanjiMaster.missions.v1") || "{}");
     const streak = JSON.parse(localStorage.getItem("kanjiMaster.streak.v1") || "{}");
 
-    // === 3. TENTUKAN DATA FINAL ===
+    // Tentukan data final (Ambil yang terbesar)
     const finalExp = Math.max(dbProfile.total_exp || 0, missions.exp || 0);
     const finalCoins = Math.max(dbProfile.sakura_coins || 0, missions.coins || 0);
     const finalStreak = Math.max(dbProfile.current_streak || 0, streak.currentStreak || 0);
     const finalLongestStreak = Math.max(dbProfile.longest_streak || 0, streak.longestStreak || 0);
 
-    // 🆕 LOGIKA AVATAR & PROFIL
     const finalUsername = userProfile.name || dbProfile.username;
-    const finalAvatar = userProfile.avatar || dbProfile.avatar_url; // Ambil dari DB jika local kosong
+    const finalAvatar = userProfile.avatar || dbProfile.avatar_url;
     const finalBio = userProfile.bio !== undefined && userProfile.bio !== "" ? userProfile.bio : dbProfile.bio;
-    const finalFavorites = userProfile.favoriteKanjiIds || []; // Simpan favorit
+    const finalFavorites = userProfile.favoriteKanjiIds || [];
 
-    // === 4. UPDATE PROFIL DI DATABASE (Hanya data yang aman) ===
+    // Update DB
     await supabase.from('profiles').update({
       total_exp: finalExp,
       sakura_coins: finalCoins,
@@ -51,7 +46,7 @@ export async function syncDataToDatabase() {
       bio: finalBio,
     }).eq('id', user.id);
 
-    // === 5. PAKSA LOCALSTORAGE MENGGUNAKAN DATA FINAL ===
+    // Sinkronkan ke LocalStorage
     const updatedMissions = {
       ...missions,
       exp: finalExp,
@@ -66,7 +61,6 @@ export async function syncDataToDatabase() {
     };
     localStorage.setItem("kanjiMaster.streak.v1", JSON.stringify(updatedStreak));
 
-    // 🆕 SIMPAN KEMBALI PROFIL LENGKAP (Agar PP dan Kanji Fav muncul)
     const updatedProfile = {
       ...userProfile,
       name: finalUsername,
@@ -76,7 +70,7 @@ export async function syncDataToDatabase() {
     };
     localStorage.setItem("userProfile", JSON.stringify(updatedProfile));
 
-    // === 6. SINKRONISASI HAFALAN (Sama seperti sebelumnya) ===
+    // Sinkronisasi hafalan
     const { data: existingProgress } = await supabase
       .from('user_progress')
       .select('item_type, item_id')
@@ -106,7 +100,7 @@ export async function syncDataToDatabase() {
     localStorage.setItem("masteredKanji", JSON.stringify(allKanjiFromDB));
     localStorage.setItem("masteredKotoba", JSON.stringify(allKotobaFromDB));
 
-    // === 7. SINKRONISASI ACHIEVEMENT ===
+    // Sinkronisasi Achievement
     const kanjiStats = JSON.parse(localStorage.getItem("kanjiAchievements") || "{}");
     const kotobaStats = JSON.parse(localStorage.getItem("kotobaExamStats") || "{}");
     const allUnlocked = Array.from(new Set([...(kanjiStats.unlocked || []), ...(kotobaStats.unlocked || [])]));
@@ -120,7 +114,6 @@ export async function syncDataToDatabase() {
       await supabase.from('user_achievements').insert(achData);
     }
 
-    // Picu event agar UI langsung berubah tanpa reload
     window.dispatchEvent(new Event("missionUpdated"));
     window.dispatchEvent(new Event("streakUpdated"));
     
