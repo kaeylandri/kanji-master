@@ -1,10 +1,11 @@
+// app/kanji/flashcard/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { updateMemory, isDueForReview } from "@/utils/memoryEngine";
-import { checkKanjiAchievements } from "@/utils/checkAchievements"; // 🆕 Import Achievement
+import { checkKanjiAchievements } from "@/utils/checkAchievements";
 
 type Kanji = {
   id: number;
@@ -25,8 +26,8 @@ export default function SmartFlashcardKanjiPage() {
   const [kanjiList, setKanjiList] = useState<Kanji[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [practiceMode, setPracticeMode] = useState(false); // 🆕 State Latihan Bebas
   
-  // State untuk Kuis Pilihan Ganda
   const [options, setOptions] = useState<Option[]>([]);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [isAnswered, setIsAnswered] = useState(false);
@@ -39,28 +40,46 @@ export default function SmartFlashcardKanjiPage() {
       .then((res) => res.json())
       .then((data: Kanji[]) => {
         const dueKanji = data.filter((k) => isDueForReview(k.id, "kanji"));
-        const sessionData = dueKanji.length > 0 
-          ? dueKanji.slice(0, 15) 
-          : data.sort(() => 0.5 - Math.random()).slice(0, 10);
-          
-        setKanjiList(sessionData);
+        
+        if (dueKanji.length > 0) {
+          setKanjiList(dueKanji.slice(0, 15));
+        } else {
+          setKanjiList([]);
+        }
         setLoading(false);
-      });
+      })
+      .catch(() => setLoading(false));
   }, []);
 
-  // Buat 4 Opsi Jawaban setiap kali index berubah
+  // 🆕 Fungsi masuk latihan bebas
+  const startPracticeMode = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch("/api/categories/semua/kanji");
+      const data: Kanji[] = await res.json();
+      
+      const randomKanji = data.sort(() => 0.5 - Math.random()).slice(0, 10);
+      
+      setKanjiList(randomKanji);
+      setPracticeMode(true);
+      setCurrentIndex(0);
+      setLoading(false);
+    } catch (err) {
+      console.error("Gagal memuat latihan bebas:", err);
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (kanjiList.length === 0) return;
     const current = kanjiList[currentIndex];
     
-    // Ambil 3 jawaban salah dari list
     const wrongOptions = kanjiList
       .filter(k => k.id !== current.id)
       .sort(() => 0.5 - Math.random())
       .slice(0, 3)
       .map(k => ({ id: k.id, text: k.meaning, isCorrect: false }));
 
-    // Gabungkan dengan jawaban benar
     const correctOption = { id: current.id, text: current.meaning, isCorrect: true };
     const allOptions = [...wrongOptions, correctOption].sort(() => 0.5 - Math.random());
     
@@ -79,10 +98,8 @@ export default function SmartFlashcardKanjiPage() {
   const handleRate = (rating: "forgot" | "hard" | "good" | "easy") => {
     const current = kanjiList[currentIndex];
     
-    // 1. Simpan ke Memory Engine (Spaced Repetition)
     updateMemory(current.id, "kanji", rating);
     
-    // 2. Simpan ke data hafalan (masteredKanji) agar sinkron dengan Achievement & Profil
     try {
       const saved = JSON.parse(localStorage.getItem("masteredKanji") || "[]");
       if (!saved.includes(current.id)) {
@@ -91,10 +108,8 @@ export default function SmartFlashcardKanjiPage() {
       }
     } catch (e) {}
 
-    // 3. 🆕 Panggil pengecekan Achievement
     checkKanjiAchievements();
 
-    // 4. Lanjut ke kartu berikutnya
     if (currentIndex + 1 >= kanjiList.length) {
       setShowSuccessModal(true);
     } else {
@@ -106,12 +121,25 @@ export default function SmartFlashcardKanjiPage() {
     return <div className="min-h-screen bg-slate-900 text-blue-400 flex items-center justify-center">Menyiapkan sesi hafalan...</div>;
   }
 
-  if (kanjiList.length === 0) {
+  // 🆕 MODAL KETIKA TIDAK ADA JADWAL
+  if (kanjiList.length === 0 && !practiceMode) {
     return (
-      <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-6">
-        <h1 className="text-2xl font-bold mb-4">Tidak ada jadwal ulang hari ini! 🎉</h1>
-        <p className="text-slate-400 mb-6">Kamu sudah menyelesaikan semua target.</p>
-        <Link href="/belajar/kanji" className="bg-blue-600 px-6 py-3 rounded-xl font-bold">Kembali</Link>
+      <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-6 text-center">
+        <div className="text-6xl mb-4">🎉</div>
+        <h1 className="text-2xl font-bold mb-2">Tidak ada jadwal ulang hari ini!</h1>
+        <p className="text-slate-400 mb-8 max-w-md">Kamu sudah menyelesaikan semua target SRS hari ini. Ingin tetap latihan?</p>
+        
+        <div className="flex flex-col gap-3 w-full max-w-xs">
+          <button 
+            onClick={startPracticeMode}
+            className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-400 hover:to-indigo-500 text-white font-bold py-4 rounded-xl shadow-lg transition active:scale-95"
+          >
+            🎮 Latihan Bebas (10 Soal)
+          </button>
+          <Link href="/belajar/kanji" className="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-4 rounded-xl transition">
+            ← Kembali ke Dashboard
+          </Link>
+        </div>
       </div>
     );
   }
@@ -129,6 +157,7 @@ export default function SmartFlashcardKanjiPage() {
           </Link>
           <span className="text-sm font-bold text-slate-400">
             Kartu {currentIndex + 1} dari {kanjiList.length}
+            {practiceMode && " (Latihan Bebas)"}
           </span>
         </div>
 
@@ -142,7 +171,6 @@ export default function SmartFlashcardKanjiPage() {
             <div className="text-8xl font-bold text-white mb-2">{current.character}</div>
             <div className="text-xl text-blue-400 font-semibold mb-6">{current.hiragana}</div>
 
-            {/* Kuis Pilihan Ganda */}
             {!isAnswered && (
               <div className="w-full grid grid-cols-1 gap-3 mt-4">
                 {options.map((opt) => (
@@ -157,7 +185,6 @@ export default function SmartFlashcardKanjiPage() {
               </div>
             )}
 
-            {/* Hasil Kuis & Tombol Penilaian */}
             {isAnswered && (
               <div className="w-full mt-4 animate-in fade-in duration-300">
                 <div className={`text-2xl font-bold mb-2 ${isCorrect ? "text-emerald-400" : "text-rose-400"}`}>

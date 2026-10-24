@@ -47,7 +47,6 @@ function LatihanContent() {
   const [hintsLeft, setHintsLeft] = useState(3);
   const [wasHinted, setWasHinted] = useState(false);
   
-  // State Item & Reveal
   const [inventory, setInventory] = useState<any>({});
   const [revealActive, setRevealActive] = useState(false);
   const [revealTimeLeft, setRevealTimeLeft] = useState(0);
@@ -56,15 +55,19 @@ function LatihanContent() {
     if (!slug) return;
     setLoading(true);
     
-    // 🆕 HANYA mengambil kanji dari kategori yang dipilih (menggunakan slug)
-    fetch(`/api/categories/${slug}/kanji`)
+    // 🆕 Beri pengaman & endpoint yang benar
+    const apiUrl = isRandomMode ? "/api/categories/semua/kanji" : `/api/categories/${slug}/kanji`;
+    
+    fetch(apiUrl)
       .then((r) => r.json())
       .then((data: Kanji[]) => {
-        if (isRandomMode) {
-          const shuffled = shuffle(data || []);
-          setKanjiList(shuffled.slice(0, 50));
-        } else {
-          setKanjiList(data || []);
+        if (data && data.length > 0) {
+          if (isRandomMode) {
+            const shuffled = shuffle(data);
+            setKanjiList(shuffled.slice(0, 50));
+          } else {
+            setKanjiList(data);
+          }
         }
         setLoading(false);
       })
@@ -85,7 +88,6 @@ function LatihanContent() {
     return () => clearInterval(interval);
   }, [isRunning]);
 
-  // Timer Reveal
   useEffect(() => {
     if (!revealActive) return;
     if (revealTimeLeft <= 0) {
@@ -125,7 +127,6 @@ function LatihanContent() {
     );
   }
 
-  // 🆕 PENGAMAN: Jika data latihan kosong
   if (kanjiList.length === 0) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 to-blue-100 p-6 text-center">

@@ -62,21 +62,26 @@ function LatihanKotobaContent() {
   const [hintsLeft, setHintsLeft] = useState(3);
   const [wasHinted, setWasHinted] = useState(false);
   
-  // 🆕 State Item & Reveal
   const [inventory, setInventory] = useState<any>({});
   const [revealActive, setRevealActive] = useState(false);
   const [revealTimeLeft, setRevealTimeLeft] = useState(0);
 
   useEffect(() => {
     if (!kategori) return;
-    fetch(`/api/kotoba/${encodeURIComponent(kategori)}`)
+    
+    // 🆕 Endpoint pengaman
+    const apiUrl = isRandomMode ? "/api/kotoba/semua" : `/api/kotoba/${encodeURIComponent(kategori)}`;
+    
+    fetch(apiUrl)
       .then((r) => r.json())
       .then((data: Kotoba[]) => {
-        if (isRandomMode) {
-          const shuffled = shuffle(data);
-          setKotobaList(shuffled.slice(0, 50));
-        } else {
-          setKotobaList(data);
+        if (data && data.length > 0) {
+          if (isRandomMode) {
+            const shuffled = shuffle(data);
+            setKotobaList(shuffled.slice(0, 50));
+          } else {
+            setKotobaList(data);
+          }
         }
       });
 
@@ -92,7 +97,6 @@ function LatihanKotobaContent() {
     return () => clearInterval(interval);
   }, [isRunning]);
 
-  // Timer Reveal
   useEffect(() => {
     if (!revealActive) return;
     if (revealTimeLeft <= 0) {
@@ -273,7 +277,6 @@ function LatihanKotobaContent() {
           </div>
         </header>
 
-        {/* 🆕 Panel Item Bantuan */}
         <div className="flex justify-center gap-3 mb-4">
           <button 
             onClick={handleUseHint}

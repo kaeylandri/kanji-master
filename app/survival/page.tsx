@@ -102,10 +102,16 @@ export default function SurvivalPage() {
         await audioCtxRef.current.resume();
       }
 
+      // 🆕 Pastikan mengambil data dari API
       const res = await fetch(`/api/categories/semua/kanji`);
+      if (!res.ok) throw new Error("Gagal ambil data");
+      
       const data: Kanji[] = await res.json();
       
-      if (data.length === 0) return;
+      if (data.length === 0) {
+        triggerToast("Data kanji tidak ditemukan.", "error");
+        return;
+      }
       
       setKanjiList(shuffle(data));
       setIndex(0);
@@ -117,6 +123,7 @@ export default function SurvivalPage() {
       setRevealActive(false);
     } catch (error) {
       console.error("Gagal memuat kanji", error);
+      triggerToast("Koneksi terputus saat memuat kanji.", "error");
     }
   }, []);
 

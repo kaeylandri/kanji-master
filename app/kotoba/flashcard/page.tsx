@@ -28,35 +28,32 @@ export default function SmartFlashcardKotobaPage() {
   const [kotobaList, setKotobaList] = useState<Kotoba[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [practiceMode, setPracticeMode] = useState(false); // 🆕 State untuk latihan bebas
   
-  // State untuk Kuis Pilihan Ganda
   const [options, setOptions] = useState<Option[]>([]);
   const [isAnswered, setIsAnswered] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
 
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
-  // State untuk Item & Full Reveal
   const [inventory, setInventory] = useState<any>({});
   const [revealActive, setRevealActive] = useState(false);
   const [revealTimeLeft, setRevealTimeLeft] = useState(0);
 
-  // Load Data
   useEffect(() => {
     const loadData = async () => {
       try {
         const res = await fetch("/api/kotoba/semua");
         const data: Kotoba[] = await res.json();
         
-        // 🆕 Filter menggunakan Promise.all karena isDueForReview sekarang sync tapi berbasis cache
-        // (Kita pakai versi sinkron karena data SR sudah ada di localStorage)
         const dueKotoba = data.filter((k) => isDueForReview(k.id, "kotoba"));
         
-        const sessionData = dueKotoba.length > 0 
-          ? dueKotoba.slice(0, 15) 
-          : data.sort(() => 0.5 - Math.random()).slice(0, 10);
-        
-        setKotobaList(sessionData);
+        if (dueKotoba.length > 0) {
+          setKotobaList(dueKotoba.slice(0, 15));
+        } else {
+          // Jika tidak ada jadwal, jangan isi kotobaList (biar tampil modal)
+          setKotobaList([]);
+        }
         setLoading(false);
       } catch (err) {
         console.error("Gagal memuat kotoba:", err);
@@ -70,7 +67,26 @@ export default function SmartFlashcardKotobaPage() {
     window.addEventListener("inventoryUpdated", () => setInventory(getInventory()));
   }, []);
 
-  // Timer Full Reveal
+  // 🆕 Fungsi untuk masuk mode latihan bebas
+  const startPracticeMode = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch("/api/kotoba/semua");
+      const data: Kotoba[] = await res.json();
+      
+      // Ambil 10 kotoba acak
+      const randomKotoba = data.sort(() => 0.5 - Math.random()).slice(0, 10);
+      
+      setKotobaList(randomKotoba);
+      setPracticeMode(true);
+      setCurrentIndex(0);
+      setLoading(false);
+    } catch (err) {
+      console.error("Gagal memuat latihan bebas:", err);
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!revealActive) return;
     if (revealTimeLeft <= 0) {
@@ -92,7 +108,6 @@ export default function SmartFlashcardKotobaPage() {
     }
   };
 
-  // Buat 4 Opsi Jawaban
   useEffect(() => {
     if (kotobaList.length === 0) return;
     const current = kotobaList[currentIndex];
@@ -116,11 +131,9 @@ export default function SmartFlashcardKotobaPage() {
     setIsCorrect(correct);
   };
 
-  // 🆕 handleRate menjadi async
   const handleRate = async (rating: "forgot" | "hard" | "good" | "easy") => {
     const current = kotobaList[currentIndex];
     
-    // Simpan ke database & cache
     await updateMemory(current.id, "kotoba", rating);
     
     try {
@@ -144,12 +157,25 @@ export default function SmartFlashcardKotobaPage() {
     return <div className="min-h-screen bg-slate-900 text-emerald-400 flex items-center justify-center">Menyiapkan sesi hafalan...</div>;
   }
 
-  if (kotobaList.length === 0) {
+  // 🆕 MODAL KETIKA TIDAK ADA JADWAL
+  if (kotobaList.length === 0 && !practiceMode) {
     return (
-      <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-6">
-        <h1 className="text-2xl font-bold mb-4">Tidak ada jadwal ulang hari ini! 🎉</h1>
-        <p className="text-slate-400 mb-6">Kamu sudah menyelesaikan semua target.</p>
-        <Link href="/belajar/kotoba" className="bg-emerald-600 px-6 py-3 rounded-xl font-bold">Kembali</Link>
+      <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-6 text-center">
+        <div className="text-6xl mb-4">🎉</div>
+        <h1 className="text-2xl font-bold mb-2">Tidak ada jadwal ulang hari ini!</h1>
+        <p className="text-slate-400 mb-8 max-w-md">Kamu sudah menyelesaikan semua target SRS hari ini. Ingin tetap latihan?</p>
+        
+        <div className="flex flex-col gap-3 w-full max-w-xs">
+          <button 
+            onClick={startPracticeMode}
+            className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold py-4 rounded-xl shadow-lg transition active:scale-95"
+          >
+            🎮 Latihan Bebas (10 Soal)
+          </button>
+          <Link href="/belajar/kotoba" className="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-4 rounded-xl transition">
+            ← Kembali ke Dashboard
+          </Link>
+        </div>
       </div>
     );
   }
@@ -161,22 +187,20 @@ export default function SmartFlashcardKotobaPage() {
     <div className="min-h-screen bg-slate-900 text-white p-6 flex flex-col relative overflow-hidden">
       <div className="max-w-md w-full mx-auto flex-1 flex flex-col z-10">
         
-        {/* Header */}
         <div className="flex justify-between items-center mb-6">
           <Link href="/belajar/kotoba" className="text-emerald-400 hover:text-emerald-300 font-semibold">
             ← Keluar
           </Link>
           <span className="text-sm font-bold text-slate-400">
             Kartu {currentIndex + 1} dari {kotobaList.length}
+            {practiceMode && " (Latihan Bebas)"}
           </span>
         </div>
 
-        {/* Progress Bar */}
         <div className="h-2 bg-slate-800 rounded-full overflow-hidden mb-4">
           <div className="h-full bg-emerald-500 transition-all duration-300" style={{ width: `${progress}%` }} />
         </div>
 
-        {/* Tombol Full Reveal */}
         <div className="mb-4">
           {!revealActive && inventory.reveal > 0 && (
             <button 
@@ -194,7 +218,6 @@ export default function SmartFlashcardKotobaPage() {
           )}
         </div>
 
-        {/* Flashcard */}
         <div className="flex-1 flex flex-col items-center justify-center">
           <div className="w-full bg-slate-800 rounded-3xl p-8 shadow-2xl border border-slate-700 flex flex-col items-center text-center">
             
@@ -210,7 +233,6 @@ export default function SmartFlashcardKotobaPage() {
               <div className="text-xl text-emerald-400 font-semibold mb-6">{current.reading}</div>
             )}
 
-            {/* Kuis Pilihan Ganda */}
             {!isAnswered && (
               <div className="w-full grid grid-cols-1 gap-3 mt-4">
                 {options.map((opt) => (
@@ -225,7 +247,6 @@ export default function SmartFlashcardKotobaPage() {
               </div>
             )}
 
-            {/* Hasil Kuis & Tombol Penilaian */}
             {isAnswered && (
               <div className="w-full mt-4 animate-in fade-in duration-300">
                 <div className={`text-2xl font-bold mb-2 ${isCorrect ? "text-emerald-400" : "text-rose-400"}`}>
@@ -248,7 +269,6 @@ export default function SmartFlashcardKotobaPage() {
         </div>
       </div>
 
-      {/* Modal Selesai */}
       {showSuccessModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-300">
           <div className="bg-slate-800 border-2 border-emerald-500/50 rounded-3xl p-8 max-w-sm w-full text-center animate-in zoom-in-95 duration-300">
