@@ -2,13 +2,15 @@
 import { NextResponse } from "next/server";
 import kotobaData from "@/data/kotoba.json";
 
+// 🆕 Next.js 15/16: params adalah Promise
 export async function GET(
   request: Request,
-  { params }: { params: { kategori: string } } // 🆕 Hapus Promise
+  { params }: { params: Promise<{ kategori: string }> }
 ) {
   try {
-    // 🆕 Tidak perlu await params
-    const kategori = params.kategori;
+    // 🆕 Wajib await params
+    const resolvedParams = await params;
+    const kategori = resolvedParams.kategori;
     
     if (!kategori) {
       return NextResponse.json({ error: "Kategori tidak ditemukan" }, { status: 400 });
