@@ -9,7 +9,7 @@ import { getMissionsState } from "@/utils/missionEngine";
 import { getStreakData } from "@/utils/streakEngine";
 import AppLayout from "@/components/AppLayout";
 import { supabase } from "@/utils/supabase";
-import { useRouter } from "next/navigation"; // 🆕 Import useRouter untuk redirect
+import { useRouter } from "next/navigation";
 
 function getTitle(mastered: number) {
   if (mastered >= 462) return { name: "Kanji Grandmaster", subtitle: "Ultimate Achievement", color: "from-yellow-400 to-amber-600", emoji: "👑" };
@@ -21,7 +21,7 @@ function getTitle(mastered: number) {
 }
 
 export default function ProfilPage() {
-  const router = useRouter(); // 🆕 Inisialisasi router
+  const router = useRouter();
   const [masteredKanji, setMasteredKanji] = useState<number[]>([]);
   const [masteredKotoba, setMasteredKotoba] = useState<number[]>([]);
   const [uniqueKotobaAnswered, setUniqueKotobaAnswered] = useState<number[]>([]);
@@ -55,8 +55,6 @@ export default function ProfilPage() {
   const handleLogout = async () => {
     try {
       await supabase.auth.signOut();
-      // Opsional: bersihkan localStorage jika ingin benar-benar fresh
-      // localStorage.clear(); 
       router.push("/login");
     } catch (error) {
       console.error("Gagal logout:", error);
@@ -67,11 +65,17 @@ export default function ProfilPage() {
     const loadStreak = () => setStreak(getStreakData());
 
     try {
-      setMasteredKanji(JSON.parse(localStorage.getItem("masteredKanji") || "[]"));
-      setMasteredKotoba(JSON.parse(localStorage.getItem("masteredKotoba") || "[]"));
-      setUniqueKotobaAnswered(JSON.parse(localStorage.getItem("uniqueKotobaAnswered") || "[]"));
+      // 🆕 PENGAMAN: Gunakan safe parsing untuk mencegah crash jika data kosong
+      const safeParse = (key: string, fallback: any) => {
+        const item = localStorage.getItem(key);
+        return item ? JSON.parse(item) : fallback;
+      };
 
-      const savedProfile = JSON.parse(localStorage.getItem("userProfile") || "null");
+      setMasteredKanji(safeParse("masteredKanji", []));
+      setMasteredKotoba(safeParse("masteredKotoba", []));
+      setUniqueKotobaAnswered(safeParse("uniqueKotobaAnswered", []));
+
+      const savedProfile = safeParse("userProfile", null);
       if (savedProfile) {
         setProfile(savedProfile);
         setEditForm(savedProfile);
@@ -82,26 +86,26 @@ export default function ProfilPage() {
       const time = localStorage.getItem("randomBestTime");
       if (time) setRandomBestTime(parseInt(time, 10));
 
-      const kotobaStats = JSON.parse(localStorage.getItem("kotobaExamStats") || "{}");
+      const kotobaStats = safeParse("kotobaExamStats", {});
       if (kotobaStats.unlocked) setUnlockedKotoba(kotobaStats.unlocked);
 
-      const statsKanji = JSON.parse(localStorage.getItem("kanjiAchievements") || "{}");
+      const statsKanji = safeParse("kanjiAchievements", {});
       setKanjiStats(statsKanji);
 
       const ms = getMissionsState();
       if (ms) {
-        setUserExp(ms.exp);
-        setSakuraCoins(ms.coins);
+        setUserExp(ms.exp || 0);
+        setSakuraCoins(ms.coins || 0);
       }
       
-      const savedEq = JSON.parse(localStorage.getItem("shopEquipped") || "{}");
+      const savedEq = safeParse("shopEquipped", {});
       setEquipped(savedEq);
 
       loadStreak();
       window.addEventListener("streakUpdated", loadStreak);
 
-      fetch("/api/categories/semua/kanji").then(res => res.json()).then(data => setKanjiList(data));
-      fetch("/api/kotoba/semua").then(res => res.json()).then(data => setKotobaList(data));
+      fetch("/api/categories/semua/kanji").then(res => res.json()).then(data => setKanjiList(data)).catch(() => {});
+      fetch("/api/kotoba/semua").then(res => res.json()).then(data => setKotobaList(data)).catch(() => {});
 
       // Ambil Daftar Teman (Hanya yang accepted)
       const fetchFriends = async () => {
@@ -116,7 +120,7 @@ export default function ProfilPage() {
 
         if (friendsData && friendsData.length > 0) {
           const friendIds = friendsData.map(f => f.user_id === user.id ? f.friend_id : f.user_id);
-          const uniqueFriendIds = Array.from(new Set(friendIds)); // Hilangkan duplikat
+          const uniqueFriendIds = Array.from(new Set(friendIds));
 
           const { data: profilesData } = await supabase
             .from('profiles')
@@ -128,7 +132,13 @@ export default function ProfilPage() {
       };
       fetchFriends();
         
-    } catch (e) {}
+    } catch (e) {
+      console.error("Error loading profile data:", e);
+    }
+
+    return () => {
+      window.removeEventListener("streakUpdated", loadStreak);
+    }
   }, []);
 
   const saveProfile = () => {
@@ -148,7 +158,7 @@ export default function ProfilPage() {
   };
 
   const toggleFavorite = (id: number) => {
-    const current = [...editForm.favoriteKanjiIds];
+    const current = editForm.favoriteKanjiIds || [];
     if (current.includes(id)) {
       setEditForm({ ...editForm, favoriteKanjiIds: current.filter(k => k !== id) });
     } else {
@@ -163,9 +173,8 @@ export default function ProfilPage() {
   const kotobaPercent = ((masteredKotoba.length / totalKotoba) * 100).toFixed(1);
   
   const title = getTitle(masteredKanji.length);
-  const favoriteData = profile.favoriteKanjiIds.map(id => kanjiList.find(k => k.id === id)).filter(Boolean);
-  const playerLevel = Math.floor(Math.sqrt(userExp / 50)) + 1;
-
+  const favoriteData = (profile.favoriteKanjiIds || []).map(id => kanjiList.find(k => k.id === id)).filter(Boolean);
+  
   const formatTime = (secs: number) => {
     const m = Math.floor(secs / 60);
     const s = secs % 60;
@@ -205,13 +214,13 @@ export default function ProfilPage() {
   const topKotobaAch = ACHIEVEMENTS_KOTOBA.filter(a => a.type === "category").slice(0, 3);
   const topKanjiAch = ACHIEVEMENTS_KANJI.filter(a => a.type === "progress").slice(0, 3);
 
-  const themeClass = equipped.theme === "theme_moonlight" 
+  const themeClass = equipped?.theme === "theme_moonlight" 
     ? "bg-gradient-to-r from-indigo-950 via-purple-900 to-slate-900" 
     : `bg-gradient-to-r ${title.color}`;
 
-  const frameClass = equipped.frame === "frame_azure" 
+  const frameClass = equipped?.frame === "frame_azure" 
     ? "border-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.6)]" 
-    : equipped.frame === "frame_emerald" 
+    : equipped?.frame === "frame_emerald" 
     ? "border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.6)]" 
     : "border-white bg-slate-100";
 
@@ -253,7 +262,7 @@ export default function ProfilPage() {
             <div className="mt-16 text-center w-full">
               <div className="flex flex-wrap items-center justify-center gap-3 mb-2">
                 <h1 className="text-3xl font-bold text-slate-800">{profile.name}</h1>
-                {equipped.title === "title_scholar" && (
+                {equipped?.title === "title_scholar" && (
                   <span className="text-xs bg-amber-50 text-amber-600 border border-amber-200 px-3 py-1 rounded-full shadow-sm">
                     👑 The Scholar
                   </span>
@@ -281,7 +290,7 @@ export default function ProfilPage() {
                     <label className="text-sm font-bold text-slate-600 block mb-2">Pilih 4 Kanji Favorit</label>
                     <div className="max-h-40 overflow-y-auto bg-white border border-slate-300 rounded-lg p-2 grid grid-cols-4 sm:grid-cols-6 gap-2">
                       {kanjiList.map(k => (
-                        <button key={k.id} onClick={() => toggleFavorite(k.id)} className={`p-2 text-xl font-bold rounded-lg border ${editForm.favoriteKanjiIds.includes(k.id) ? "border-blue-500 bg-blue-50 text-blue-600" : "border-slate-200 hover:bg-slate-100 text-slate-600"}`}>
+                        <button key={k.id} onClick={() => toggleFavorite(k.id)} className={`p-2 text-xl font-bold rounded-lg border ${(editForm.favoriteKanjiIds || []).includes(k.id) ? "border-blue-500 bg-blue-50 text-blue-600" : "border-slate-200 hover:bg-slate-100 text-slate-600"}`}>
                           {k.character}
                         </button>
                       ))}
@@ -388,7 +397,7 @@ export default function ProfilPage() {
 
         {/* Kartu Daily Streak Dinamis */}
         {streak && (() => {
-          const days = streak.currentStreak;
+          const days = streak.currentStreak || 0;
           
           let tierClass = "from-gray-400 to-slate-500";
           let fireClass = "fire-dead";
@@ -426,7 +435,7 @@ export default function ProfilPage() {
               </div>
               <div className="text-center sm:text-right">
                 <div className="text-3xl sm:text-4xl font-black">{days} Hari</div>
-                <div className="text-[10px] sm:text-xs text-white/80 font-bold">Terpanjang: {streak.longestStreak} Hari</div>
+                <div className="text-[10px] sm:text-xs text-white/80 font-bold">Terpanjang: {streak.longestStreak || 0} Hari</div>
               </div>
             </div>
           );
@@ -458,7 +467,7 @@ export default function ProfilPage() {
         <h2 className="text-xl sm:text-2xl font-bold text-slate-800 mb-4">🌸 4 Kanji Favorit</h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-10">
           {favoriteData.length > 0 ? (
-            favoriteData.map((k) => (
+            favoriteData.map((k: any) => (
               <div key={k.id} className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 text-center shadow-sm relative overflow-hidden group">
                 <div className="absolute top-2 right-2 text-3xl sm:text-4xl opacity-10 group-hover:scale-110 transition">🎌</div>
                 <div className="text-4xl sm:text-6xl font-bold mb-2 sm:mb-3 drop-shadow-sm text-slate-800">{k.character}</div>
