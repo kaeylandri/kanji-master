@@ -100,7 +100,6 @@ export default function SurvivalPage() {
         await audioCtxRef.current.resume();
       }
 
-      // 🆕 PERBAIKAN URL: Gunakan /api/categories/semua/kanji
       const res = await fetch(`/api/categories/semua/kanji`);
       if (!res.ok) throw new Error("Gagal ambil data");
       
@@ -119,6 +118,9 @@ export default function SurvivalPage() {
       setGameState("playing");
       setWrongNotif(false);
       setRevealActive(false);
+      
+      // 🆕 Panggil api saat game dimulai (sekali sehari)
+      triggerFireAnimationIfNewDay();
     } catch (error) {
       console.error("Gagal memuat kanji", error);
       triggerToast("Koneksi terputus saat memuat kanji.", "error");
@@ -155,10 +157,6 @@ export default function SurvivalPage() {
       if (score > currentRecord) {
         localStorage.setItem("survivalHighScore", score.toString());
         setHighScore(score);
-      }
-
-      if (typeof window !== "undefined") {
-        triggerFireAnimationIfNewDay();
       }
     }
   }, [gameState, score]);

@@ -33,6 +33,8 @@ export default function HeaderStats({ variant = "light" }: { variant?: "light" |
 
   useEffect(() => {
     loadStats();
+    
+    // 🆕 Event Listener
     window.addEventListener("streakUpdated", loadStats);
     window.addEventListener("missionUpdated", loadStats);
     window.addEventListener("inventoryUpdated", loadStats);
@@ -63,12 +65,13 @@ export default function HeaderStats({ variant = "light" }: { variant?: "light" |
     const interval = setInterval(checkNotifications, 5000);
 
     return () => {
+      // 🆕 Cleanup Listener
       window.removeEventListener("streakUpdated", loadStats);
       window.removeEventListener("missionUpdated", loadStats);
       window.removeEventListener("inventoryUpdated", loadStats);
       clearInterval(interval);
     };
-  }, []);
+  }, [isFirstLoad, lastRequestCount, lastAcceptedCount]); // 🆕 Dependensi lengkap
 
   const bgClass = variant === "dark" 
     ? "bg-slate-800 border-slate-700 text-white" 

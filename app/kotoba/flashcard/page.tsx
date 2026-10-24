@@ -8,6 +8,7 @@ import { updateMemory, isDueForReview } from "@/utils/memoryEngine";
 import { checkKotobaAchievements } from "@/utils/checkAchievements";
 import { getInventory, useItem } from "@/utils/luckyEngine";
 import { triggerToast } from "@/utils/toast";
+import { triggerFireAnimationIfNewDay } from "@/utils/streakEngine"; // 🆕 Import
 
 type Kotoba = {
   id: number;
@@ -41,6 +42,11 @@ export default function SmartFlashcardKotobaPage() {
   const [revealTimeLeft, setRevealTimeLeft] = useState(0);
 
   useEffect(() => {
+    // 🆕 Panggil fungsi api DI SINI (saat halaman pertama kali dimuat)
+    triggerFireAnimationIfNewDay();
+  }, []);
+
+  useEffect(() => {
     const loadData = async () => {
       try {
         const res = await fetch("/api/kotoba/semua");
@@ -66,7 +72,6 @@ export default function SmartFlashcardKotobaPage() {
     window.addEventListener("inventoryUpdated", () => setInventory(getInventory()));
   }, []);
 
-  // 🆕 PERBAIKAN: Tombol Latihan Bebas langsung redirect ke halaman latihan acak
   const startPracticeMode = () => {
     router.push("/kotoba/latihan/semua?acak=1");
   };

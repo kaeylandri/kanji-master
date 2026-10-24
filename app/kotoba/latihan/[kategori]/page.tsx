@@ -68,7 +68,11 @@ function LatihanKotobaContent() {
   const [revealTimeLeft, setRevealTimeLeft] = useState(0);
 
   useEffect(() => {
-    // 🆕 HAPUS pengecekan !kategori di sini karena mode acak tidak butuh kategori
+    // 🆕 Panggil fungsi api DI SINI (saat halaman pertama kali dimuat)
+    triggerFireAnimationIfNewDay();
+  }, []);
+
+  useEffect(() => {
     setLoading(true);
     
     const apiUrl = isRandomMode ? "/api/kotoba/semua" : `/api/kotoba/${encodeURIComponent(kategori)}`;
@@ -87,13 +91,13 @@ function LatihanKotobaContent() {
             setKotobaList(data);
           }
         } else {
-          setKotobaList([]); // Pastikan array kosong jika data kosong
+          setKotobaList([]);
         }
         setLoading(false);
       })
       .catch((err) => {
         console.error("Gagal memuat kotoba:", err);
-        setKotobaList([]); // Set kosong agar memicu tampilan error
+        setKotobaList([]);
         setLoading(false);
       });
 
@@ -242,7 +246,7 @@ function LatihanKotobaContent() {
       setFlipped(true);
       setWrongNotif(false);
       
-      triggerFireAnimationIfNewDay();
+      // 🆕 HAPUS triggerFireAnimationIfNewDay() dari sini
 
       if (!wasHinted) {
         setStats((s) => ({ ...s, correct: s.correct + 1 }));

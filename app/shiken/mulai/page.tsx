@@ -4,7 +4,7 @@
 import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import soalData from "@/data/shiken-questions.json"; // Pastikan file JSON ini ada
+import soalData from "@/data/shiken-questions.json"; 
 import { triggerFireAnimationIfNewDay } from "@/utils/streakEngine";
 import { addMissionProgress } from "@/utils/missionEngine";
 import { checkKanjiAchievements } from "@/utils/checkAchievements";
@@ -38,21 +38,22 @@ function ShikenContent() {
   const [gameState, setGameState] = useState<"playing" | "result">("playing");
   const [showExitConfirm, setShowExitConfirm] = useState(false);
   
-  // Timer (khusus simulasi JFT)
   const [timeLeft, setTimeLeft] = useState(isSimulasiJFT ? 70 * 60 : null);
 
   useEffect(() => {
-    // Ambil soal acak sesuai jumlah yang dipilih
+    // 🆕 Panggil fungsi api DI SINI (saat ujian dimulai)
+    triggerFireAnimationIfNewDay();
+  }, []);
+
+  useEffect(() => {
     const randomized = shuffle(soalData).slice(0, jumlahSoal);
     setQuestions(randomized);
   }, [jumlahSoal]);
 
-  // Timer Logic
   useEffect(() => {
     if (timeLeft === null || gameState !== "playing") return;
     if (timeLeft <= 0) {
       setGameState("result");
-      triggerFireAnimationIfNewDay();
       return;
     }
     const timer = setInterval(() => setTimeLeft(prev => (prev !== null ? prev - 1 : null)), 1000);
@@ -75,7 +76,6 @@ function ShikenContent() {
   const handleNext = () => {
     if (index + 1 >= questions.length) {
       setGameState("result");
-      triggerFireAnimationIfNewDay();
       addMissionProgress("session_complete", 1);
       return;
     }
@@ -91,7 +91,6 @@ function ShikenContent() {
 
   const handleFinishEarly = () => {
     setGameState("result");
-    triggerFireAnimationIfNewDay();
     addMissionProgress("session_complete", 1);
   };
 
@@ -108,7 +107,6 @@ function ShikenContent() {
     const score = questions.reduce((acc, q) => acc + (answers[q.id] === q.answer ? 1 : 0), 0);
     const nilaiAkhir = Math.round((score / questions.length) * 100);
     
-    // Cek Achievement Ujian
     try {
       const stats = JSON.parse(localStorage.getItem("kanjiAchievements") || "{}");
       const unlocked = stats.unlocked || [];
@@ -122,7 +120,6 @@ function ShikenContent() {
       checkKanjiAchievements();
     } catch (e) {}
 
-    // Simpan rekor jika simulasi
     if (isSimulasiJFT) {
       const currentHigh = parseInt(localStorage.getItem("examHighScore") || "0", 10);
       if (nilaiAkhir > currentHigh) {
@@ -209,7 +206,6 @@ function ShikenContent() {
   return (
     <div className="min-h-screen bg-slate-50 p-6 relative">
       
-      {/* Header Timer & Progress */}
       <div className="max-w-2xl mx-auto mb-6">
         <div className="flex justify-between items-center mb-4 bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
           <button onClick={() => setShowExitConfirm(true)} className="text-slate-500 hover:text-rose-600 font-bold transition flex items-center gap-1">
@@ -274,7 +270,6 @@ function ShikenContent() {
         </div>
       </div>
 
-      {/* Pop-up Konfirmasi Keluar */}
       {showExitConfirm && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-3xl p-6 max-w-sm w-full text-center shadow-2xl animate-in zoom-in-95">
@@ -289,7 +284,7 @@ function ShikenContent() {
               </button>
               <button 
                 onClick={() => {
-                  setShowExitConfirm(false); // 🆕 Tutup pop-up dulu sebelum pindah
+                  setShowExitConfirm(false);
                   router.push("/shiken");
                 }} 
                 className="flex-1 bg-rose-500 text-white font-bold py-3 rounded-xl transition"
@@ -304,7 +299,6 @@ function ShikenContent() {
   );
 }
 
-// 🆕 Wrapper dengan Key untuk mereset state saat pindah ujian
 function ShikenWrapper() {
   const searchParams = useSearchParams();
   const soal = searchParams.get("soal");

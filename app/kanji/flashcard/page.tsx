@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { updateMemory, isDueForReview } from "@/utils/memoryEngine";
 import { checkKanjiAchievements } from "@/utils/checkAchievements";
 import { triggerToast } from "@/utils/toast";
+import { triggerFireAnimationIfNewDay } from "@/utils/streakEngine"; // 🆕 Import
 
 type Kanji = {
   id: number;
@@ -37,6 +38,11 @@ export default function SmartFlashcardKanjiPage() {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   useEffect(() => {
+    // 🆕 Panggil fungsi api DI SINI (saat halaman pertama kali dimuat)
+    triggerFireAnimationIfNewDay();
+  }, []);
+
+  useEffect(() => {
     fetch("/api/categories/semua/kanji")
       .then((res) => res.json())
       .then((data: Kanji[]) => {
@@ -55,7 +61,6 @@ export default function SmartFlashcardKanjiPage() {
   const startPracticeMode = async () => {
     try {
       setLoading(true);
-      // 🆕 PERBAIKAN URL: Pastikan endpoint benar
       const res = await fetch("/api/categories/semua/kanji");
       if (!res.ok) throw new Error("Gagal ambil data");
       

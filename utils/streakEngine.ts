@@ -1,3 +1,5 @@
+// utils/streakEngine.ts
+
 export type ClaimedReward = {
   milestoneDays: number;
   claimedAt: string;
@@ -21,6 +23,7 @@ export const MILESTONES = [
 
 const STREAK_KEY = "kanjiMaster.streak.v1";
 
+// 🆕 Format tanggal menggunakan WIB (Asia/Jakarta)
 function getJakartaDate(date: Date = new Date()): string {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Jakarta",
@@ -54,6 +57,7 @@ export function getStreakData(): StreakData {
 
 function saveStreakData(data: StreakData) {
   localStorage.setItem(STREAK_KEY, JSON.stringify(data));
+  // 🆕 Dispatch event agar Header dan komponen lain yang mendengarkan langsung update
   window.dispatchEvent(new Event("streakUpdated"));
 }
 

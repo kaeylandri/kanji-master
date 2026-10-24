@@ -52,6 +52,11 @@ function LatihanContent() {
   const [revealTimeLeft, setRevealTimeLeft] = useState(0);
 
   useEffect(() => {
+    // 🆕 Panggil fungsi api DI SINI (saat halaman pertama kali dimuat)
+    triggerFireAnimationIfNewDay();
+  }, []);
+
+  useEffect(() => {
     if (!slug) return;
     setLoading(true);
     
@@ -143,36 +148,6 @@ function LatihanContent() {
   }
 
   if (finished) {
-    if (typeof window !== "undefined") {
-      triggerFireAnimationIfNewDay();
-    }
-
-    if (typeof window !== "undefined" && isRandomMode) {
-      const currentTime = localStorage.getItem("randomBestTime");
-      if (!currentTime || elapsed < parseInt(currentTime, 10)) {
-        localStorage.setItem("randomBestTime", elapsed.toString());
-      }
-      
-      try {
-        const statsAch = JSON.parse(localStorage.getItem("kanjiAchievements") || "{}");
-        const unlocked = statsAch.unlocked || [];
-        const acakSessions = statsAch.acakSessions || 0;
-        
-        const unlock = (id: string) => { if (!unlocked.includes(id)) unlocked.push(id); };
-        
-        unlock("mode_acak_1");
-        if (kanjiList.length >= 50) unlock("mode_acak_2");
-        
-        const totalAnswered = stats.correct + stats.wrong;
-        if (stats.correct === 50 && totalAnswered === 50) unlock("mode_acak_3");
-        
-        const newSessions = acakSessions + 1;
-        if (newSessions >= 50) unlock("mode_acak_4");
-        
-        localStorage.setItem("kanjiAchievements", JSON.stringify({ ...statsAch, unlocked, acakSessions: newSessions }));
-      } catch (e) {}
-    }
-
     const total = stats.correct + stats.wrong;
     const accuracy = total > 0 ? Math.round((stats.correct / total) * 100) : 0;
     const backLink = isRandomMode ? "/belajar/kanji" : `/category/${slug}`;
@@ -274,7 +249,7 @@ function LatihanContent() {
       setFlipped(true);
       setWrongNotif(false);
       
-      triggerFireAnimationIfNewDay();
+      // 🆕 HAPUS triggerFireAnimationIfNewDay() dari sini
 
       if (!wasHinted) {
         setStats((s) => ({ ...s, correct: s.correct + 1 }));
