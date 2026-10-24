@@ -28,7 +28,7 @@ export default function SmartFlashcardKotobaPage() {
   const [kotobaList, setKotobaList] = useState<Kotoba[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [practiceMode, setPracticeMode] = useState(false); // 🆕 State untuk latihan bebas
+  const [practiceMode, setPracticeMode] = useState(false);
   
   const [options, setOptions] = useState<Option[]>([]);
   const [isAnswered, setIsAnswered] = useState(false);
@@ -51,7 +51,6 @@ export default function SmartFlashcardKotobaPage() {
         if (dueKotoba.length > 0) {
           setKotobaList(dueKotoba.slice(0, 15));
         } else {
-          // Jika tidak ada jadwal, jangan isi kotobaList (biar tampil modal)
           setKotobaList([]);
         }
         setLoading(false);
@@ -67,14 +66,15 @@ export default function SmartFlashcardKotobaPage() {
     window.addEventListener("inventoryUpdated", () => setInventory(getInventory()));
   }, []);
 
-  // 🆕 Fungsi untuk masuk mode latihan bebas
   const startPracticeMode = async () => {
     try {
       setLoading(true);
+      // 🆕 PERBAIKAN URL: Pastikan menggunakan endpoint yang benar
       const res = await fetch("/api/kotoba/semua");
+      if (!res.ok) throw new Error("Gagal ambil data");
+      
       const data: Kotoba[] = await res.json();
       
-      // Ambil 10 kotoba acak
       const randomKotoba = data.sort(() => 0.5 - Math.random()).slice(0, 10);
       
       setKotobaList(randomKotoba);
@@ -83,6 +83,7 @@ export default function SmartFlashcardKotobaPage() {
       setLoading(false);
     } catch (err) {
       console.error("Gagal memuat latihan bebas:", err);
+      triggerToast("Gagal memuat data latihan.", "error");
       setLoading(false);
     }
   };
@@ -157,7 +158,6 @@ export default function SmartFlashcardKotobaPage() {
     return <div className="min-h-screen bg-slate-900 text-emerald-400 flex items-center justify-center">Menyiapkan sesi hafalan...</div>;
   }
 
-  // 🆕 MODAL KETIKA TIDAK ADA JADWAL
   if (kotobaList.length === 0 && !practiceMode) {
     return (
       <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-6 text-center">

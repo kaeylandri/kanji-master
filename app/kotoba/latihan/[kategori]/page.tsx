@@ -69,7 +69,7 @@ function LatihanKotobaContent() {
   useEffect(() => {
     if (!kategori) return;
     
-    // 🆕 Endpoint pengaman
+    // 🆕 PERBAIKAN URL: Jika acak, ambil dari semua. Jika tidak, ambil dari kategori.
     const apiUrl = isRandomMode ? "/api/kotoba/semua" : `/api/kotoba/${encodeURIComponent(kategori)}`;
     
     fetch(apiUrl)

@@ -55,7 +55,7 @@ function LatihanContent() {
     if (!slug) return;
     setLoading(true);
     
-    // 🆕 Beri pengaman & endpoint yang benar
+    // 🆕 PERBAIKAN URL: Jika acak, ambil dari semua. Jika tidak, ambil dari kategori.
     const apiUrl = isRandomMode ? "/api/categories/semua/kanji" : `/api/categories/${slug}/kanji`;
     
     fetch(apiUrl)

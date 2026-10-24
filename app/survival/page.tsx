@@ -36,7 +36,6 @@ export default function SurvivalPage() {
   const [shake, setShake] = useState(false);
   const [highScore, setHighScore] = useState(0);
 
-  // 🆕 State Item & Reveal
   const [inventory, setInventory] = useState<any>({});
   const [revealActive, setRevealActive] = useState(false);
   const [revealTimeLeft, setRevealTimeLeft] = useState(0);
@@ -52,7 +51,6 @@ export default function SurvivalPage() {
     window.addEventListener("inventoryUpdated", () => setInventory(getInventory()));
   }, []);
 
-  // Timer Reveal
   useEffect(() => {
     if (!revealActive) return;
     if (revealTimeLeft <= 0) {
@@ -102,7 +100,7 @@ export default function SurvivalPage() {
         await audioCtxRef.current.resume();
       }
 
-      // 🆕 Pastikan mengambil data dari API
+      // 🆕 PERBAIKAN URL: Gunakan /api/categories/semua/kanji
       const res = await fetch(`/api/categories/semua/kanji`);
       if (!res.ok) throw new Error("Gagal ambil data");
       
@@ -308,7 +306,6 @@ export default function SurvivalPage() {
 
   return (
     <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4 sm:p-6 select-none">
-      {/* 🆕 Tombol Full Reveal */}
       <div className="w-full max-w-sm mb-4">
         <button 
           onClick={handleUseReveal}
@@ -340,7 +337,6 @@ export default function SurvivalPage() {
           {current.character}
         </div>
 
-        {/* 🆕 Tampilkan jawaban jika Reveal aktif */}
         {revealActive && (
           <div className="text-3xl text-purple-600 font-bold mt-2 animate-in fade-in">
             {current.meaning}

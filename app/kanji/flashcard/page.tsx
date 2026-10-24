@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { updateMemory, isDueForReview } from "@/utils/memoryEngine";
 import { checkKanjiAchievements } from "@/utils/checkAchievements";
+import { triggerToast } from "@/utils/toast";
 
 type Kanji = {
   id: number;
@@ -26,7 +27,7 @@ export default function SmartFlashcardKanjiPage() {
   const [kanjiList, setKanjiList] = useState<Kanji[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [practiceMode, setPracticeMode] = useState(false); // 🆕 State Latihan Bebas
+  const [practiceMode, setPracticeMode] = useState(false);
   
   const [options, setOptions] = useState<Option[]>([]);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
@@ -51,11 +52,13 @@ export default function SmartFlashcardKanjiPage() {
       .catch(() => setLoading(false));
   }, []);
 
-  // 🆕 Fungsi masuk latihan bebas
   const startPracticeMode = async () => {
     try {
       setLoading(true);
+      // 🆕 PERBAIKAN URL: Pastikan endpoint benar
       const res = await fetch("/api/categories/semua/kanji");
+      if (!res.ok) throw new Error("Gagal ambil data");
+      
       const data: Kanji[] = await res.json();
       
       const randomKanji = data.sort(() => 0.5 - Math.random()).slice(0, 10);
@@ -66,6 +69,7 @@ export default function SmartFlashcardKanjiPage() {
       setLoading(false);
     } catch (err) {
       console.error("Gagal memuat latihan bebas:", err);
+      triggerToast("Gagal memuat data latihan.", "error");
       setLoading(false);
     }
   };
@@ -121,7 +125,6 @@ export default function SmartFlashcardKanjiPage() {
     return <div className="min-h-screen bg-slate-900 text-blue-400 flex items-center justify-center">Menyiapkan sesi hafalan...</div>;
   }
 
-  // 🆕 MODAL KETIKA TIDAK ADA JADWAL
   if (kanjiList.length === 0 && !practiceMode) {
     return (
       <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-6 text-center">
