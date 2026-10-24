@@ -2,13 +2,11 @@
 import { NextResponse } from "next/server";
 import kotobaData from "@/data/kotoba.json";
 
-// 🆕 Next.js 15/16: params adalah Promise
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ kategori: string }> }
+  { params }: { params: Promise<{ kategori: string }> } // 🆕 Next.js 15/16 params is Promise
 ) {
   try {
-    // 🆕 Wajib await params
     const resolvedParams = await params;
     const kategori = resolvedParams.kategori;
     
