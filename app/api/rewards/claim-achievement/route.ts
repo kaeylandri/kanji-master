@@ -2,7 +2,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-// 🆕 Gunakan Service Role Key (Bukan Anon Key) agar bisa bypass RLS
+// 🆕 Gunakan Service Role Key agar bisa bypass RLS
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -61,9 +61,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Gagal update reward: " + updateError.message }, { status: 500 });
     }
 
-    // 5. Update Inventory (Hint, Freeze, Reveal)
+    // 5. Update Inventory
     if (rewardHint > 0 || rewardFreeze > 0 || rewardReveal > 0) {
-      // Ambil inventory saat ini
       const { data: inventory } = await supabaseAdmin
         .from('user_inventory')
         .select('hint, freeze_count, reveal')
@@ -71,7 +70,6 @@ export async function POST(request: Request) {
         .single();
 
       if (inventory) {
-        // Jika baris inventory sudah ada, update
         await supabaseAdmin
           .from('user_inventory')
           .update({
@@ -81,7 +79,6 @@ export async function POST(request: Request) {
           })
           .eq('user_id', userId);
       } else {
-        // Jika belum ada (user baru), buat baris baru
         await supabaseAdmin
           .from('user_inventory')
           .insert({

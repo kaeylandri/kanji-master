@@ -22,6 +22,8 @@ export async function syncDataToDatabase() {
     const localMasteredKanji = JSON.parse(localStorage.getItem("masteredKanji") || "[]");
     const localMasteredKotoba = JSON.parse(localStorage.getItem("masteredKotoba") || "[]");
     const uniqueKotoba = JSON.parse(localStorage.getItem("uniqueKotobaAnswered") || "[]");
+    
+    // 🆕 Ambil userProfile lengkap (termasuk favoriteKanjiIds)
     const userProfile = JSON.parse(localStorage.getItem("userProfile") || "{}");
     const missions = JSON.parse(localStorage.getItem("kanjiMaster.missions.v1") || "{}");
     const streak = JSON.parse(localStorage.getItem("kanjiMaster.streak.v1") || "{}");
@@ -32,12 +34,13 @@ export async function syncDataToDatabase() {
     const finalStreak = Math.max(dbProfile.current_streak || 0, streak.currentStreak || 0);
     const finalLongestStreak = Math.max(dbProfile.longest_streak || 0, streak.longestStreak || 0);
 
-    // 🆕 AVATAR: Jika local kosong, PASTI pakai punya DB. Jangan pernah kirim null ke DB!
+    // 🆕 LOGIKA AVATAR & PROFIL
     const finalUsername = userProfile.name || dbProfile.username;
-    const finalAvatar = userProfile.avatar || dbProfile.avatar_url; // <-- PERBAIKAN
+    const finalAvatar = userProfile.avatar || dbProfile.avatar_url; // Ambil dari DB jika local kosong
     const finalBio = userProfile.bio !== undefined && userProfile.bio !== "" ? userProfile.bio : dbProfile.bio;
+    const finalFavorites = userProfile.favoriteKanjiIds || []; // Simpan favorit
 
-    // === 4. UPDATE PROFIL DI DATABASE ===
+    // === 4. UPDATE PROFIL DI DATABASE (Hanya data yang aman) ===
     await supabase.from('profiles').update({
       total_exp: finalExp,
       sakura_coins: finalCoins,
@@ -48,7 +51,7 @@ export async function syncDataToDatabase() {
       bio: finalBio,
     }).eq('id', user.id);
 
-    // === 5. PAKSA LOCALSTORAGE MENGGUNAKAN DATA DARI DATABASE ===
+    // === 5. PAKSA LOCALSTORAGE MENGGUNAKAN DATA FINAL ===
     const updatedMissions = {
       ...missions,
       exp: finalExp,
@@ -63,16 +66,17 @@ export async function syncDataToDatabase() {
     };
     localStorage.setItem("kanjiMaster.streak.v1", JSON.stringify(updatedStreak));
 
+    // 🆕 SIMPAN KEMBALI PROFIL LENGKAP (Agar PP dan Kanji Fav muncul)
     const updatedProfile = {
       ...userProfile,
       name: finalUsername,
-      avatar: finalAvatar, // <-- PASTIKAN DISIMPAN DI SINI
+      avatar: finalAvatar,
       bio: finalBio,
+      favoriteKanjiIds: finalFavorites, 
     };
     localStorage.setItem("userProfile", JSON.stringify(updatedProfile));
 
-    // === 6. SINKRONISASI HAFALAN ===
-    // ... (biarkan kode hafalan & achievement kamu tetap sama seperti sebelumnya)
+    // === 6. SINKRONISASI HAFALAN (Sama seperti sebelumnya) ===
     const { data: existingProgress } = await supabase
       .from('user_progress')
       .select('item_type, item_id')
@@ -116,6 +120,7 @@ export async function syncDataToDatabase() {
       await supabase.from('user_achievements').insert(achData);
     }
 
+    // Picu event agar UI langsung berubah tanpa reload
     window.dispatchEvent(new Event("missionUpdated"));
     window.dispatchEvent(new Event("streakUpdated"));
     
