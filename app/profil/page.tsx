@@ -27,7 +27,6 @@ export default function ProfilPage() {
   const [uniqueKotobaAnswered, setUniqueKotobaAnswered] = useState<number[]>([]);
   const [kotobaList, setKotobaList] = useState<any[]>([]);
   const [kanjiList, setKanjiList] = useState<any[]>([]);
-  const [isLoadingKanji, setIsLoadingKanji] = useState(true); // 🆕 Loading state untuk kanji favorit
   
   const [profile, setProfile] = useState({
     name: "Pengguna Baru",
@@ -52,7 +51,6 @@ export default function ProfilPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState(profile);
 
-  // 🆕 Fungsi Logout
   const handleLogout = async () => {
     try {
       await supabase.auth.signOut();
@@ -66,19 +64,26 @@ export default function ProfilPage() {
     const loadStreak = () => setStreak(getStreakData());
 
     try {
-      // 🆕 PENGAMAN: Gunakan safe parsing untuk mencegah crash jika data kosong
       const safeParse = (key: string, fallback: any) => {
         const item = localStorage.getItem(key);
         return item ? JSON.parse(item) : fallback;
       };
 
+      // 🆕 1. Ambil data rekor
+      setSurvivalHighScore(parseInt(localStorage.getItem("survivalHighScore") || "0", 10));
+      setExamHighScore(parseInt(localStorage.getItem("examHighScore") || "0", 10));
+      const time = localStorage.getItem("randomBestTime");
+      if (time && time !== "0") setRandomBestTime(parseInt(time, 10));
+      else setRandomBestTime(null);
+
+      // 🆕 2. Ambil data hafalan
       setMasteredKanji(safeParse("masteredKanji", []));
       setMasteredKotoba(safeParse("masteredKotoba", []));
       setUniqueKotobaAnswered(safeParse("uniqueKotobaAnswered", []));
 
+      // 🆕 3. Ambil profil (termasuk Favorite)
       const savedProfile = safeParse("userProfile", null);
       if (savedProfile) {
-        // Pastikan favoriteKanjiIds selalu array
         if (!Array.isArray(savedProfile.favoriteKanjiIds)) {
           savedProfile.favoriteKanjiIds = [];
         }
@@ -86,11 +91,7 @@ export default function ProfilPage() {
         setEditForm(savedProfile);
       }
 
-      setSurvivalHighScore(parseInt(localStorage.getItem("survivalHighScore") || "0", 10));
-      setExamHighScore(parseInt(localStorage.getItem("examHighScore") || "0", 10));
-      const time = localStorage.getItem("randomBestTime");
-      if (time) setRandomBestTime(parseInt(time, 10));
-
+      // 🆕 4. Ambil stats & inventory
       const kotobaStats = safeParse("kotobaExamStats", {});
       if (kotobaStats.unlocked) setUnlockedKotoba(kotobaStats.unlocked);
 
@@ -109,19 +110,18 @@ export default function ProfilPage() {
       loadStreak();
       window.addEventListener("streakUpdated", loadStreak);
 
-      // 🆕 Fetch Kanji dengan Loading State
-      setIsLoadingKanji(true);
+      // 🆕 5. Fetch Kanji & Kotoba
       fetch("/api/categories/semua/kanji")
         .then(res => res.json())
-        .then(data => {
-          setKanjiList(data);
-          setIsLoadingKanji(false);
-        })
-        .catch(() => setIsLoadingKanji(false));
+        .then(data => setKanjiList(data))
+        .catch(() => {});
+        
+      fetch("/api/kotoba/semua")
+        .then(res => res.json())
+        .then(data => setKotobaList(data))
+        .catch(() => {});
 
-      fetch("/api/kotoba/semua").then(res => res.json()).then(data => setKotobaList(data)).catch(() => {});
-
-      // Ambil Daftar Teman (Hanya yang accepted)
+      // 🆕 6. Fetch Teman
       const fetchFriends = async () => {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
@@ -148,7 +148,6 @@ export default function ProfilPage() {
         
     } catch (e) {
       console.error("Error loading profile data:", e);
-      setIsLoadingKanji(false);
     }
 
     return () => {
@@ -188,7 +187,11 @@ export default function ProfilPage() {
   const kotobaPercent = ((masteredKotoba.length / totalKotoba) * 100).toFixed(1);
   
   const title = getTitle(masteredKanji.length);
-  const favoriteData = (profile.favoriteKanjiIds || []).map(id => kanjiList.find(k => k.id === id)).filter(Boolean);
+  
+  // 🆕 PENGAMAN: Pastikan favoriteKanjiIds ada dan filter data yang ditemukan
+  const favoriteData = (profile.favoriteKanjiIds || [])
+    .map(id => kanjiList.find(k => k.id === id))
+    .filter((k): k is any => !!k);
   
   const formatTime = (secs: number) => {
     const m = Math.floor(secs / 60);
@@ -303,20 +306,13 @@ export default function ProfilPage() {
                   </div>
                   <div>
                     <label className="text-sm font-bold text-slate-600 block mb-2">Pilih 4 Kanji Favorit</label>
-                    {/* 🆕 TAMPILKAN LOADING JIKA KANJI BELUM SIAP */}
-                    {isLoadingKanji ? (
-                      <div className="text-center py-4 text-slate-400 animate-pulse text-sm">Memuat daftar kanji...</div>
-                    ) : kanjiList.length === 0 ? (
-                      <div className="text-center py-4 text-red-400 text-sm">Gagal memuat kanji. Coba refresh.</div>
-                    ) : (
-                      <div className="max-h-40 overflow-y-auto bg-white border border-slate-300 rounded-lg p-2 grid grid-cols-4 sm:grid-cols-6 gap-2">
-                        {kanjiList.map(k => (
-                          <button key={k.id} onClick={() => toggleFavorite(k.id)} className={`p-2 text-xl font-bold rounded-lg border ${(editForm.favoriteKanjiIds || []).includes(k.id) ? "border-blue-500 bg-blue-50 text-blue-600" : "border-slate-200 hover:bg-slate-100 text-slate-600"}`}>
-                            {k.character}
-                          </button>
-                        ))}
-                      </div>
-                    )}
+                    <div className="max-h-40 overflow-y-auto bg-white border border-slate-300 rounded-lg p-2 grid grid-cols-4 sm:grid-cols-6 gap-2">
+                      {kanjiList.map(k => (
+                        <button key={k.id} onClick={() => toggleFavorite(k.id)} className={`p-2 text-xl font-bold rounded-lg border ${(editForm.favoriteKanjiIds || []).includes(k.id) ? "border-blue-500 bg-blue-50 text-blue-600" : "border-slate-200 hover:bg-slate-100 text-slate-600"}`}>
+                          {k.character}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                   <button onClick={saveProfile} className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-6 rounded-lg shadow transition w-full">💾 Simpan Profil</button>
                 </div>
@@ -334,7 +330,6 @@ export default function ProfilPage() {
                     </div>
                   </div>
 
-                  {/* 🆕 TOMBOL AKSI (GANTI PASSWORD & LOGOUT) */}
                   <div className="flex items-center justify-center gap-4 sm:gap-6">
                     <button 
                       onClick={() => window.location.href = '/update-password'} 
