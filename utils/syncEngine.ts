@@ -6,10 +6,10 @@ export async function syncDataToDatabase() {
   if (!user) return;
 
   try {
-    // === 1. AMBIL DATA DARI DATABASE ===
+    // 1. Ambil data dari DB
     const { data: dbProfile, error: dbError } = await supabase
       .from('profiles')
-      .select('total_exp, sakura_coins, current_streak, longest_streak, username, avatar_url, bio, survival_high_score, exam_high_score, random_best_time')
+      .select('*')
       .eq('id', user.id)
       .single();
 
@@ -18,43 +18,35 @@ export async function syncDataToDatabase() {
       return;
     }
 
-    // === 2. AMBIL DATA DARI LOCALSTORAGE ===
-    const localMasteredKanji = JSON.parse(localStorage.getItem("masteredKanji") || "[]");
-    const localMasteredKotoba = JSON.parse(localStorage.getItem("masteredKotoba") || "[]");
-    const uniqueKotoba = JSON.parse(localStorage.getItem("uniqueKotobaAnswered") || "[]");
-    const userProfile = JSON.parse(localStorage.getItem("userProfile") || "{}");
-    const missions = JSON.parse(localStorage.getItem("kanjiMaster.missions.v1") || "{}");
-    const streak = JSON.parse(localStorage.getItem("kanjiMaster.streak.v1") || "{}");
-
-    // 🆕 Ambil data rekor lokal
+    // 2. Ambil data dari LocalStorage
+    const localProfile = JSON.parse(localStorage.getItem("userProfile") || "{}");
+    const localMissions = JSON.parse(localStorage.getItem("kanjiMaster.missions.v1") || "{}");
+    const localStreak = JSON.parse(localStorage.getItem("kanjiMaster.streak.v1") || "{}");
     const localSurvival = parseInt(localStorage.getItem("survivalHighScore") || "0", 10);
     const localExam = parseInt(localStorage.getItem("examHighScore") || "0", 10);
     const localRandomTime = parseInt(localStorage.getItem("randomBestTime") || "0", 10);
 
-    // === 3. TENTUKAN DATA FINAL (Local vs DB) ===
-    const finalExp = Math.max(dbProfile.total_exp || 0, missions.exp || 0);
-    const finalCoins = Math.max(dbProfile.sakura_coins || 0, missions.coins || 0);
-    const finalStreak = Math.max(dbProfile.current_streak || 0, streak.currentStreak || 0);
-    const finalLongestStreak = Math.max(dbProfile.longest_streak || 0, streak.longestStreak || 0);
-
-    // 🆕 LOGIKA REKOR: Ambil yang tertinggi (untuk skor) atau terendah (untuk waktu)
+    // 3. Tentukan Data Final (Jangan pernah turunkan nilai)
+    const finalExp = Math.max(dbProfile.total_exp || 0, localMissions.exp || 0);
+    const finalCoins = Math.max(dbProfile.sakura_coins || 0, localMissions.coins || 0);
+    const finalStreak = Math.max(dbProfile.current_streak || 0, localStreak.currentStreak || 0);
+    const finalLongestStreak = Math.max(dbProfile.longest_streak || 0, localStreak.longestStreak || 0);
+    
+    // Rekor
     const finalSurvival = Math.max(dbProfile.survival_high_score || 0, localSurvival);
     const finalExam = Math.max(dbProfile.exam_high_score || 0, localExam);
-    
-    // Waktu tercepat: Jika local ada (lebih dari 0), ambil yang paling kecil
     let finalRandomTime = dbProfile.random_best_time || 0;
     if (localRandomTime > 0) {
-      finalRandomTime = finalRandomTime > 0 
-        ? Math.min(finalRandomTime, localRandomTime) 
-        : localRandomTime;
+      finalRandomTime = finalRandomTime > 0 ? Math.min(finalRandomTime, localRandomTime) : localRandomTime;
     }
 
-    const finalUsername = userProfile.name || dbProfile.username;
-    const finalAvatar = userProfile.avatar || dbProfile.avatar_url;
-    const finalBio = userProfile.bio !== undefined && userProfile.bio !== "" ? userProfile.bio : dbProfile.bio;
-    const finalFavorites = userProfile.favoriteKanjiIds || [];
+    // 🆕 PROFIL: Jika local kosong, PASTI pakai punya DB
+    const finalUsername = localProfile.name || dbProfile.username || "Pengguna";
+    const finalAvatar = localProfile.avatar || dbProfile.avatar_url || "";
+    const finalBio = localProfile.bio || dbProfile.bio || "";
+    const finalFavorites = localProfile.favoriteKanjiIds || [];
 
-    // === 4. UPDATE PROFIL DI DATABASE ===
+    // 4. Update DB (Hanya jika ada perubahan signifikan atau untuk memastikan sinkron)
     await supabase.from('profiles').update({
       total_exp: finalExp,
       sakura_coins: finalCoins,
@@ -63,25 +55,24 @@ export async function syncDataToDatabase() {
       username: finalUsername,
       avatar_url: finalAvatar,
       bio: finalBio,
-      survival_high_score: finalSurvival, // 🆕
-      exam_high_score: finalExam,         // 🆕
-      random_best_time: finalRandomTime,  // 🆕
+      survival_high_score: finalSurvival,
+      exam_high_score: finalExam,
+      random_best_time: finalRandomTime,
     }).eq('id', user.id);
 
-    // === 5. PAKSA LOCALSTORAGE MENGGUNAKAN DATA FINAL ===
-    const updatedMissions = { ...missions, exp: finalExp, coins: finalCoins };
+    // 5. PAKSA LOCALSTORAGE MENGGUNAKAN DATA FINAL DARI DB
+    const updatedMissions = { ...localMissions, exp: finalExp, coins: finalCoins };
     localStorage.setItem("kanjiMaster.missions.v1", JSON.stringify(updatedMissions));
 
-    const updatedStreak = { ...streak, currentStreak: finalStreak, longestStreak: finalLongestStreak };
+    const updatedStreak = { ...localStreak, currentStreak: finalStreak, longestStreak: finalLongestStreak };
     localStorage.setItem("kanjiMaster.streak.v1", JSON.stringify(updatedStreak));
 
-    // 🆕 Simpan rekor kembali ke lokal agar sinkron
     localStorage.setItem("survivalHighScore", finalSurvival.toString());
     localStorage.setItem("examHighScore", finalExam.toString());
     if (finalRandomTime > 0) localStorage.setItem("randomBestTime", finalRandomTime.toString());
 
     const updatedProfile = {
-      ...userProfile,
+      ...localProfile,
       name: finalUsername,
       avatar: finalAvatar,
       bio: finalBio,
@@ -89,7 +80,11 @@ export async function syncDataToDatabase() {
     };
     localStorage.setItem("userProfile", JSON.stringify(updatedProfile));
 
-    // === 6. SINKRONISASI HAFALAN ===
+    // 6. Sinkronisasi Hafalan & Achievement (Sama seperti sebelumnya)
+    const localMasteredKanji = JSON.parse(localStorage.getItem("masteredKanji") || "[]");
+    const localMasteredKotoba = JSON.parse(localStorage.getItem("masteredKotoba") || "[]");
+    const uniqueKotoba = JSON.parse(localStorage.getItem("uniqueKotobaAnswered") || "[]");
+
     const { data: existingProgress } = await supabase
       .from('user_progress')
       .select('item_type, item_id')
@@ -119,7 +114,6 @@ export async function syncDataToDatabase() {
     localStorage.setItem("masteredKanji", JSON.stringify(allKanjiFromDB));
     localStorage.setItem("masteredKotoba", JSON.stringify(allKotobaFromDB));
 
-    // === 7. SINKRONISASI ACHIEVEMENT ===
     const kanjiStats = JSON.parse(localStorage.getItem("kanjiAchievements") || "{}");
     const kotobaStats = JSON.parse(localStorage.getItem("kotobaExamStats") || "{}");
     const allUnlocked = Array.from(new Set([...(kanjiStats.unlocked || []), ...(kotobaStats.unlocked || [])]));
@@ -133,6 +127,7 @@ export async function syncDataToDatabase() {
       await supabase.from('user_achievements').insert(achData);
     }
 
+    // 7. Trigger Event
     window.dispatchEvent(new Event("missionUpdated"));
     window.dispatchEvent(new Event("streakUpdated"));
     

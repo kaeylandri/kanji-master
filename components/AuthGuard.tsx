@@ -5,15 +5,12 @@ import { useEffect, useState, Suspense } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { supabase } from "@/utils/supabase";
 import { syncDataToDatabase } from "@/utils/syncEngine";
-import { checkStreakExpiry, getInventory } from "@/utils/luckyEngine";
-import { getMissionsState } from "@/utils/missionEngine";
-import { triggerToast } from "@/utils/toast";
+import { checkStreakExpiry } from "@/utils/luckyEngine";
 
 function AuthGuardContent({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   
-  // 🆕 State untuk memastikan pengecekan selesai sebelum render
   const [isChecking, setIsChecking] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
@@ -23,18 +20,12 @@ function AuthGuardContent({ children }: { children: React.ReactNode }) {
     pathname === "/forgot-password" || 
     pathname === "/update-password";
 
-  const claimGifts = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user || !user.email) return; 
-    // ... (kode claimGifts kamu tetap sama)
-  };
-
   useEffect(() => {
     let isMounted = true;
 
     const checkAuth = async () => {
       try {
-        // 🆕 Beri jeda sedikit agar Supabase sempat membaca token dari URL email
+        // Beri jeda agar Supabase siap
         await new Promise(resolve => setTimeout(resolve, 300));
         
         const { data: { session } } = await supabase.auth.getSession();
@@ -46,20 +37,17 @@ function AuthGuardContent({ children }: { children: React.ReactNode }) {
         if (isValidUser) {
           setIsAuthenticated(true);
           
-          // Jalankan sinkronisasi hanya jika bukan halaman auth
           if (!isAuthPage) {
             try {
               checkStreakExpiry();
-              await syncDataToDatabase();
-              claimGifts();
+              // 🆕 TUNGGU SINKRONISASI SELESAI SEBELUM RENDER
+              await syncDataToDatabase(); 
             } catch (err) {
               console.error("Auth initialization error:", err);
             }
           }
         } else {
           setIsAuthenticated(false);
-          
-          // 🆕 Redirect ke login jika bukan halaman publik
           if (!isAuthPage) {
             router.replace("/login");
           }
@@ -71,6 +59,7 @@ function AuthGuardContent({ children }: { children: React.ReactNode }) {
           if (!isAuthPage) router.replace("/login");
         }
       } finally {
+        // 🆕 Baru matikan loading setelah semua proses selesai
         if (isMounted) setIsChecking(false);
       }
     };
@@ -78,6 +67,8 @@ function AuthGuardContent({ children }: { children: React.ReactNode }) {
     checkAuth();
 
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!isMounted) return;
+
       if (event === "SIGNED_OUT") {
         setIsAuthenticated(false);
         if (!isAuthPage) router.replace("/login");
@@ -93,11 +84,10 @@ function AuthGuardContent({ children }: { children: React.ReactNode }) {
           try {
             checkStreakExpiry();
             await syncDataToDatabase();
-            claimGifts();
           } catch (err) {
             console.error("Sync on auth change error:", err);
           }
-          setIsChecking(false);
+          if (isMounted) setIsChecking(false);
         }
       }
     });
@@ -108,17 +98,17 @@ function AuthGuardContent({ children }: { children: React.ReactNode }) {
     };
   }, [pathname, isAuthPage, router]);
 
-  // 🆕 TAHAN RENDER SELAMA PENGECEKAN
+  // Tahan render selama pengecekan & sinkronisasi
   if (isChecking) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center">
         <div className="text-6xl mb-4 animate-bounce">🎌</div>
-        <div className="text-slate-500 font-bold animate-pulse text-lg">Memeriksa keamanan...</div>
+        <div className="text-slate-500 font-bold animate-pulse text-lg">Menyinkronkan data...</div>
       </div>
     );
   }
 
-  // 🆕 Jika tidak login dan bukan halaman auth, jangan render apa pun (biarkan redirect)
+  // Jika tidak login dan bukan halaman auth, jangan render apa pun
   if (!isAuthenticated && !isAuthPage) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center">
