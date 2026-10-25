@@ -1,9 +1,20 @@
+// utils/checkAchievements.ts
 import { ACHIEVEMENTS_KANJI } from "@/data/achievements-kanji";
 import { ACHIEVEMENTS_KOTOBA } from "@/data/achievements";
 import { playAchievementSound } from "./sound";
 
-// Fungsi bantuan untuk memicu pop-up
+// 🆕 Fungsi bantuan untuk memicu pop-up dengan pengaman
 function triggerAchievement(id: string, type: "kanji" | "kotoba") {
+  // 🆕 PENGAMAN 1: Cek apakah modal sudah ditampilkan di sesi ini
+  const sessionKey = `achievement_shown_${id}`;
+  if (sessionStorage.getItem(sessionKey)) {
+    console.log(`Achievement ${id} sudah ditampilkan di sesi ini, skip.`);
+    return;
+  }
+
+  // 🆕 PENGAMAN 2: Tandai sudah ditampilkan
+  sessionStorage.setItem(sessionKey, "true");
+  
   playAchievementSound();
   const event = new CustomEvent("show-achievement", { detail: { id, type } });
   window.dispatchEvent(event);
@@ -46,20 +57,16 @@ export async function checkKotobaAchievements() {
   const unlocked = stats.unlocked || [];
   let newUnlocked = false;
 
-  // Kita butuh data Kotoba untuk mengecek kategori
   try {
     const res = await fetch("/api/kotoba/semua");
     const kotobaList = await res.json();
 
-    // Cek Achievement Kategori (Aisatsu Masutā, Kazoku no Kizuna, dll)
     const categoryAchievements = ACHIEVEMENTS_KOTOBA.filter(a => a.type === "category");
 
     categoryAchievements.forEach(ach => {
-      // Hitung berapa kotoba di kategori ini yang sudah dijawab benar
       const kotobaInCat = kotobaList.filter((k: any) => k.category === ach.categoryTarget);
       const masteredInCat = kotobaInCat.filter((k: any) => uniqueAnswered.includes(k.id)).length;
 
-      // Jika memenuhi target dan belum pernah diklaim
       if (masteredInCat >= (ach.targetCount || 0) && !unlocked.includes(ach.id)) {
         unlocked.push(ach.id);
         newUnlocked = true;
@@ -67,7 +74,6 @@ export async function checkKotobaAchievements() {
       }
     });
 
-    // Simpan jika ada yang baru
     if (newUnlocked) {
       localStorage.setItem("kotobaExamStats", JSON.stringify({ ...stats, unlocked }));
     }

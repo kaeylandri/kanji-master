@@ -57,7 +57,6 @@ export function getStreakData(): StreakData {
 
 function saveStreakData(data: StreakData) {
   localStorage.setItem(STREAK_KEY, JSON.stringify(data));
-  // 🆕 Dispatch event agar Header dan komponen lain yang mendengarkan langsung update
   window.dispatchEvent(new Event("streakUpdated"));
 }
 
@@ -68,8 +67,13 @@ export function triggerFireAnimationIfNewDay() {
   const data = getStreakData();
   const today = getJakartaDate();
   
-  // Jika sudah pernah belajar hari ini, jangan picu api sama sekali
+  // 🆕 PENGAMAN 1: Jika sudah pernah belajar hari ini, jangan picu api
   if (data.lastActiveDate === today) return;
+
+  // 🆕 PENGAMAN 2: Cek apakah animasi sudah dipicu di sesi ini (mencegah re-trigger saat pindah halaman)
+  const sessionKey = `fire_triggered_${today}`;
+  if (sessionStorage.getItem(sessionKey)) return;
+  sessionStorage.setItem(sessionKey, "true");
 
   const isConsecutive = data.lastActiveDate === shiftDate(today, -1);
   const newStreak = isConsecutive ? data.currentStreak + 1 : 1;

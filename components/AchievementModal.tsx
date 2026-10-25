@@ -1,3 +1,4 @@
+// components/AchievementModal.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -22,10 +23,12 @@ export default function AchievementModal() {
       setIsVisible(true);
 
       // Sembunyikan otomatis setelah 5 detik
-      setTimeout(() => {
+      const timeoutId = setTimeout(() => {
         setIsVisible(false);
-        setTimeout(() => setAchievement(null), 300); // Tunggu animasi fade out
+        setTimeout(() => setAchievement(null), 300);
       }, 5000);
+
+      return () => clearTimeout(timeoutId);
     };
 
     window.addEventListener("show-achievement", handleShowAchievement);
