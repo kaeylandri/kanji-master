@@ -42,7 +42,7 @@ function ShikenContent() {
 
   useEffect(() => {
     // 🆕 Panggil fungsi api DI SINI (saat ujian dimulai)
-    triggerFireAnimationIfNewDay();
+    
   }, []);
 
   useEffect(() => {

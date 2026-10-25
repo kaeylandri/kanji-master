@@ -120,7 +120,7 @@ export default function SurvivalPage() {
       setRevealActive(false);
       
       // 🆕 Panggil api saat game dimulai (sekali sehari)
-      triggerFireAnimationIfNewDay();
+      
     } catch (error) {
       console.error("Gagal memuat kanji", error);
       triggerToast("Koneksi terputus saat memuat kanji.", "error");

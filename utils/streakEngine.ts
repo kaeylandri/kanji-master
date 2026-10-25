@@ -67,14 +67,26 @@ export function triggerFireAnimationIfNewDay() {
   const data = getStreakData();
   const today = getJakartaDate();
   
-  // 🆕 PENGAMAN 1: Jika sudah pernah belajar hari ini, jangan picu api
+  // 🆕 PENGAMAN 1: Jika data lastActiveDate sudah sama dengan hari ini, batalkan.
   if (data.lastActiveDate === today) return;
 
-  // 🆕 PENGAMAN 2: Cek apakah animasi sudah dipicu di sesi ini (mencegah re-trigger saat pindah halaman)
-  const sessionKey = `fire_triggered_${today}`;
-  if (sessionStorage.getItem(sessionKey)) return;
-  sessionStorage.setItem(sessionKey, "true");
+  // 🆕 PENGAMAN 2: Cek timestamp terakhir api menyala (Gunakan localStorage)
+  const lastFireTime = localStorage.getItem("last_fire_time");
+  const now = Date.now();
+  
+  if (lastFireTime) {
+    const timeDiff = now - parseInt(lastFireTime, 10);
+    // Jika kurang dari 24 jam, jangan picu api
+    if (timeDiff < 24 * 60 * 60 * 1000) {
+      console.log("Api sudah menyala dalam 24 jam terakhir, skip.");
+      return;
+    }
+  }
 
+  // Tandai waktu api menyala
+  localStorage.setItem("last_fire_time", now.toString());
+
+  // Hitung streak baru
   const isConsecutive = data.lastActiveDate === shiftDate(today, -1);
   const newStreak = isConsecutive ? data.currentStreak + 1 : 1;
 

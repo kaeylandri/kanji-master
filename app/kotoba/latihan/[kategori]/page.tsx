@@ -69,7 +69,7 @@ function LatihanKotobaContent() {
 
   useEffect(() => {
     // 🆕 Panggil fungsi api DI SINI (saat halaman pertama kali dimuat)
-    triggerFireAnimationIfNewDay();
+    
   }, []);
 
   useEffect(() => {

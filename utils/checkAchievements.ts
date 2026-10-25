@@ -3,17 +3,23 @@ import { ACHIEVEMENTS_KANJI } from "@/data/achievements-kanji";
 import { ACHIEVEMENTS_KOTOBA } from "@/data/achievements";
 import { playAchievementSound } from "./sound";
 
-// 🆕 Fungsi bantuan untuk memicu pop-up dengan pengaman
+// 🆕 Fungsi bantuan dengan pengaman BERLAPIS
 function triggerAchievement(id: string, type: "kanji" | "kotoba") {
-  // 🆕 PENGAMAN 1: Cek apakah modal sudah ditampilkan di sesi ini
-  const sessionKey = `achievement_shown_${id}`;
-  if (sessionStorage.getItem(sessionKey)) {
-    console.log(`Achievement ${id} sudah ditampilkan di sesi ini, skip.`);
+  // PENGAMAN 1: Cek apakah sudah ada di localStorage (permanen)
+  const shownKey = `achievement_shown_permanent_${id}`;
+  if (localStorage.getItem(shownKey)) {
+    return; 
+  }
+  localStorage.setItem(shownKey, "true");
+
+  // PENGAMAN 2: Cek cooldown 1 jam (mencegah spam saat testing)
+  const lastShown = localStorage.getItem(`last_achievement_time`);
+  const now = Date.now();
+  if (lastShown && now - parseInt(lastShown) < 60 * 60 * 1000) {
+    console.log("Achievement cooldown aktif, skip.");
     return;
   }
-
-  // 🆕 PENGAMAN 2: Tandai sudah ditampilkan
-  sessionStorage.setItem(sessionKey, "true");
+  localStorage.setItem(`last_achievement_time`, now.toString());
   
   playAchievementSound();
   const event = new CustomEvent("show-achievement", { detail: { id, type } });
@@ -31,8 +37,8 @@ export function checkKanjiAchievements() {
   const unlocked = stats.unlocked || [];
   let newUnlocked = false;
 
-  // Cek Achievement Progres (25, 100, 200, dll)
   ACHIEVEMENTS_KANJI.filter(a => a.type === "progress").forEach(ach => {
+    // 🆕 PENGAMAN: Cek apakah sudah ada di array unlocked
     if (!unlocked.includes(ach.id) && mastered.length >= (ach.targetCount || 0)) {
       unlocked.push(ach.id);
       newUnlocked = true;
@@ -40,7 +46,6 @@ export function checkKanjiAchievements() {
     }
   });
 
-  // Simpan jika ada yang baru
   if (newUnlocked) {
     localStorage.setItem("kanjiAchievements", JSON.stringify({ ...stats, unlocked }));
   }
