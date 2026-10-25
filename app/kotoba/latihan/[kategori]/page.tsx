@@ -67,10 +67,10 @@ function LatihanKotobaContent() {
   const [revealActive, setRevealActive] = useState(false);
   const [revealTimeLeft, setRevealTimeLeft] = useState(0);
 
-  useEffect(() => {
-    triggerFireAnimationIfNewDay();// 🆕 Panggil fungsi api DI SINI (saat halaman pertama kali dimuat)
-    
-  }, []);
+  // 🆕 HAPUS pemanggilan triggerFireAnimationIfNewDay() dari sini
+  // useEffect(() => {
+  //   triggerFireAnimationIfNewDay();
+  // }, []);
 
   useEffect(() => {
     setLoading(true);
@@ -246,7 +246,7 @@ function LatihanKotobaContent() {
       setFlipped(true);
       setWrongNotif(false);
       
-      // 🆕 HAPUS triggerFireAnimationIfNewDay() dari sini
+      // 🆕 triggerFireAnimationIfNewDay() TIDAK DIPANGGIL DI SINI
 
       if (!wasHinted) {
         setStats((s) => ({ ...s, correct: s.correct + 1 }));
@@ -284,7 +284,15 @@ function LatihanKotobaContent() {
   };
 
   const next = () => {
-    if (index + 1 >= kotobaList.length) { setFinished(true); setIsRunning(false); return; }
+    if (index + 1 >= kotobaList.length) { 
+      setFinished(true); 
+      setIsRunning(false); 
+      
+      // 🆕 PINDAHKAN PEMANGGILAN API KE SINI (Saat Latihan Selesai)
+      triggerFireAnimationIfNewDay();
+      
+      return; 
+    }
     setFlipped(false); setInput(""); setWrongNotif(false); setWasHinted(false); setIndex((i) => i + 1);
   };
 

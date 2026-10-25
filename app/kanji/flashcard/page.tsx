@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { updateMemory, isDueForReview } from "@/utils/memoryEngine";
 import { checkKanjiAchievements } from "@/utils/checkAchievements";
 import { triggerToast } from "@/utils/toast";
-import { triggerFireAnimationIfNewDay } from "@/utils/streakEngine"; // 🆕 Import
+import { triggerFireAnimationIfNewDay } from "@/utils/streakEngine";
 
 type Kanji = {
   id: number;
@@ -37,10 +37,10 @@ export default function SmartFlashcardKanjiPage() {
 
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
-  useEffect(() => {
-    triggerFireAnimationIfNewDay();// 🆕 Panggil fungsi api DI SINI (saat halaman pertama kali dimuat)
-    
-  }, []);
+  // 🆕 HAPUS pemanggilan triggerFireAnimationIfNewDay() dari sini
+  // useEffect(() => {
+  //   triggerFireAnimationIfNewDay();
+  // }, []);
 
   useEffect(() => {
     fetch("/api/categories/semua/kanji")
@@ -121,6 +121,10 @@ export default function SmartFlashcardKanjiPage() {
 
     if (currentIndex + 1 >= kanjiList.length) {
       setShowSuccessModal(true);
+      
+      // 🆕 PINDAHKAN PEMANGGILAN API KE SINI (Saat Latihan Selesai)
+      triggerFireAnimationIfNewDay();
+      
     } else {
       setCurrentIndex((i) => i + 1);
     }

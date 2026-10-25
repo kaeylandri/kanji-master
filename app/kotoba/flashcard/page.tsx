@@ -8,7 +8,7 @@ import { updateMemory, isDueForReview } from "@/utils/memoryEngine";
 import { checkKotobaAchievements } from "@/utils/checkAchievements";
 import { getInventory, useItem } from "@/utils/luckyEngine";
 import { triggerToast } from "@/utils/toast";
-import { triggerFireAnimationIfNewDay } from "@/utils/streakEngine"; // 🆕 Import
+import { triggerFireAnimationIfNewDay } from "@/utils/streakEngine";
 
 type Kotoba = {
   id: number;
@@ -41,10 +41,10 @@ export default function SmartFlashcardKotobaPage() {
   const [revealActive, setRevealActive] = useState(false);
   const [revealTimeLeft, setRevealTimeLeft] = useState(0);
 
-  useEffect(() => {
-    triggerFireAnimationIfNewDay();// 🆕 Panggil fungsi api DI SINI (saat halaman pertama kali dimuat)
-    
-  }, []);
+  // 🆕 HAPUS pemanggilan triggerFireAnimationIfNewDay() dari sini
+  // useEffect(() => {
+  //   triggerFireAnimationIfNewDay();
+  // }, []);
 
   useEffect(() => {
     const loadData = async () => {
@@ -137,6 +137,10 @@ export default function SmartFlashcardKotobaPage() {
 
     if (currentIndex + 1 >= kotobaList.length) {
       setShowSuccessModal(true);
+      
+      // 🆕 PINDAHKAN PEMANGGILAN API KE SINI (Saat Latihan Selesai)
+      triggerFireAnimationIfNewDay();
+      
     } else {
       setCurrentIndex((i) => i + 1);
     }
