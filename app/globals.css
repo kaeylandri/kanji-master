@@ -86,3 +86,16 @@ body {
 .animate-fire-flicker {
   animation: fire-flicker 0.5s infinite ease-in-out;
 }
+/* app/globals.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 🆕 Sembunyikan scrollbar untuk header di HP */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
