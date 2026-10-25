@@ -40,13 +40,13 @@ export async function syncDataToDatabase() {
       finalRandomTime = finalRandomTime > 0 ? Math.min(finalRandomTime, localRandomTime) : localRandomTime;
     }
 
-    // 🆕 PROFIL: Jika local kosong, PASTI pakai punya DB
+    // PROFIL: Jika local kosong, PASTI pakai punya DB
     const finalUsername = localProfile.name || dbProfile.username || "Pengguna";
     const finalAvatar = localProfile.avatar || dbProfile.avatar_url || "";
     const finalBio = localProfile.bio || dbProfile.bio || "";
     const finalFavorites = localProfile.favoriteKanjiIds || [];
 
-    // 4. Update DB (Hanya jika ada perubahan signifikan atau untuk memastikan sinkron)
+    // 4. Update DB
     await supabase.from('profiles').update({
       total_exp: finalExp,
       sakura_coins: finalCoins,
@@ -80,7 +80,7 @@ export async function syncDataToDatabase() {
     };
     localStorage.setItem("userProfile", JSON.stringify(updatedProfile));
 
-    // 6. Sinkronisasi Hafalan & Achievement (Sama seperti sebelumnya)
+    // === 6. SINKRONISASI HAFALAN (KANJI & KOTOBA) ===
     const localMasteredKanji = JSON.parse(localStorage.getItem("masteredKanji") || "[]");
     const localMasteredKotoba = JSON.parse(localStorage.getItem("masteredKotoba") || "[]");
     const uniqueKotoba = JSON.parse(localStorage.getItem("uniqueKotobaAnswered") || "[]");
@@ -109,25 +109,56 @@ export async function syncDataToDatabase() {
       await supabase.from('user_progress').upsert(progressData, { onConflict: 'user_id,item_type,item_id' });
     }
 
+    // 🆕 GABUNGKAN data dari DB + Local
     const allKanjiFromDB = Array.from(new Set([...existingKanji, ...newKanji]));
     const allKotobaFromDB = Array.from(new Set([...existingKotoba, ...newKotoba]));
     localStorage.setItem("masteredKanji", JSON.stringify(allKanjiFromDB));
     localStorage.setItem("masteredKotoba", JSON.stringify(allKotobaFromDB));
 
+    // === 7. SINKRONISASI ACHIEVEMENT ===
+    // 🆕 Ambil achievement dari DB
+    const { data: dbAchievements } = await supabase
+      .from('user_achievements')
+      .select('achievement_id')
+      .eq('user_id', user.id);
+
+    const dbUnlockedIds = (dbAchievements || []).map(a => a.achievement_id);
+
+    // 🆕 Gabungkan dengan achievement lokal
     const kanjiStats = JSON.parse(localStorage.getItem("kanjiAchievements") || "{}");
     const kotobaStats = JSON.parse(localStorage.getItem("kotobaExamStats") || "{}");
-    const allUnlocked = Array.from(new Set([...(kanjiStats.unlocked || []), ...(kotobaStats.unlocked || [])]));
+    const localUnlockedKanji = kanjiStats.unlocked || [];
+    const localUnlockedKotoba = kotobaStats.unlocked || [];
 
-    await supabase.from('user_achievements').delete().eq('user_id', user.id);
-    if (allUnlocked.length > 0) {
-      const achData = allUnlocked.map((achId: string) => ({
+    const combinedUnlockedKanji = Array.from(new Set([...localUnlockedKanji, ...dbUnlockedIds]));
+    const combinedUnlockedKotoba = Array.from(new Set([...localUnlockedKotoba, ...dbUnlockedIds]));
+
+    // 🆕 Simpan ke localStorage agar checkAchievements tahu ini sudah unlock
+    localStorage.setItem("kanjiAchievements", JSON.stringify({ 
+      ...kanjiStats, 
+      unlocked: combinedUnlockedKanji 
+    }));
+
+    localStorage.setItem("kotobaExamStats", JSON.stringify({ 
+      ...kotobaStats, 
+      unlocked: combinedUnlockedKotoba 
+    }));
+
+    // 🆕 Sinkronkan kembali ke DB (jika ada yang belum masuk)
+    const newAchKanji = localUnlockedKanji.filter((id: string) => !dbUnlockedIds.includes(id));
+    const newAchKotoba = localUnlockedKotoba.filter((id: string) => !dbUnlockedIds.includes(id));
+    const allNewAch = Array.from(new Set([...newAchKanji, ...newAchKotoba]));
+
+    if (allNewAch.length > 0) {
+      const achData = allNewAch.map((achId: string) => ({
         user_id: user.id,
         achievement_id: achId
       }));
-      await supabase.from('user_achievements').insert(achData);
+      // Gunakan upsert agar tidak error jika sudah ada
+      await supabase.from('user_achievements').upsert(achData, { onConflict: 'user_id,achievement_id' });
     }
 
-    // 7. Trigger Event
+    // 8. Trigger Event
     window.dispatchEvent(new Event("missionUpdated"));
     window.dispatchEvent(new Event("streakUpdated"));
     
