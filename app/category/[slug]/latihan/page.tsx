@@ -52,7 +52,7 @@ function LatihanContent() {
   const [revealTimeLeft, setRevealTimeLeft] = useState(0);
 
   useEffect(() => {
-    // 🆕 Panggil fungsi api DI SINI (saat halaman pertama kali dimuat)
+    triggerFireAnimationIfNewDay();// 🆕 Panggil fungsi api DI SINI (saat halaman pertama kali dimuat)
     
   }, []);
 

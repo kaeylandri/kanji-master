@@ -67,26 +67,14 @@ export function triggerFireAnimationIfNewDay() {
   const data = getStreakData();
   const today = getJakartaDate();
   
-  // 🆕 PENGAMAN 1: Jika data lastActiveDate sudah sama dengan hari ini, batalkan.
-  if (data.lastActiveDate === today) return;
-
-  // 🆕 PENGAMAN 2: Cek timestamp terakhir api menyala (Gunakan localStorage)
-  const lastFireTime = localStorage.getItem("last_fire_time");
-  const now = Date.now();
-  
-  if (lastFireTime) {
-    const timeDiff = now - parseInt(lastFireTime, 10);
-    // Jika kurang dari 24 jam, jangan picu api
-    if (timeDiff < 24 * 60 * 60 * 1000) {
-      console.log("Api sudah menyala dalam 24 jam terakhir, skip.");
-      return;
-    }
+  // 🆕 PENGAMAN UTAMA: Jika tanggal terakhir aktif sama dengan hari ini, BATALKAN.
+  // Ini mencegah api menyala lebih dari sekali sehari.
+  if (data.lastActiveDate === today) {
+    return;
   }
 
-  // Tandai waktu api menyala
-  localStorage.setItem("last_fire_time", now.toString());
-
   // Hitung streak baru
+  // Jika lastActiveDate adalah kemarin, tambah streak. Jika tidak (bolong), reset ke 1.
   const isConsecutive = data.lastActiveDate === shiftDate(today, -1);
   const newStreak = isConsecutive ? data.currentStreak + 1 : 1;
 
