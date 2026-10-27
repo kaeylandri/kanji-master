@@ -153,7 +153,7 @@ export default function BattleRoomPage() {
           me={me} 
           opponent={opponent} 
           endsAt={match.ends_at!} 
-          isPaused={match.status === 'paused'} 
+          isPaused={String(match.status) === 'paused'}
         />
 
         {/* Area Soal */}
