@@ -21,28 +21,40 @@ export default function LoginPage() {
     setLoading(true);
 
     if (isLogin) {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      
       if (error) {
         triggerToast(error.message, "error");
         setLoading(false);
-      } else {
-        // 🆕 PEMBERSIHAN TOTAL SAAT LOGIN
-        // Hapus semua data dari sesi sebelumnya agar tidak bocor ke akun baru
-        localStorage.clear();
-        sessionStorage.clear();
+      } else if (data.session) {
+        // 🆕 PENTING: Beri jeda agar Supabase menyimpan token sesi ke localStorage
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        // 🆕 HANYA hapus data game (JANGAN hapus semua localStorage)
+        // Ini mencegah token sesi Supabase ikut terhapus
+        const keysToRemove = [
+          "masteredKanji", "masteredKotoba", "uniqueKotobaAnswered",
+          "kanjiMaster.missions.v1", "kanjiMaster.streak.v1",
+          "userProfile", "kanjiAchievements", "kotobaExamStats",
+          "survivalHighScore", "examHighScore", "randomBestTime",
+          "shopEquipped", "shopInventory", "kanjiMaster.inventory.v1"
+        ];
         
-        // Hapus cookie supabase
-        document.cookie.split(";").forEach((c) => {
-          document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+        keysToRemove.forEach(key => localStorage.removeItem(key));
+        
+        // Hapus juga penanda achievement permanen
+        Object.keys(localStorage).forEach(key => {
+          if (key.startsWith("achievement_shown_permanent_")) {
+            localStorage.removeItem(key);
+          }
         });
 
         triggerToast("Selamat datang kembali! 🎉", "success");
         
-        // 🆕 Gunakan window.location.href untuk memaksa reload total
-        // Ini memastikan AuthGuard dan syncEngine berjalan dari nol
+        // 🆕 Redirect setelah jeda
         setTimeout(() => {
           window.location.href = "/";
-        }, 1000);
+        }, 500);
       }
     } else {
       const { data, error } = await supabase.auth.signUp({ email, password });
