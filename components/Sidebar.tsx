@@ -14,6 +14,7 @@ export default function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsO
     { name: "Dashboard", href: "/", icon: "🏠" },
     { name: "Belajar Kanji", href: "/belajar/kanji", icon: "📚" },
     { name: "Belajar Kotoba", href: "/belajar/kotoba", icon: "📖" },
+    { name: "Sakura Battle", href: "/battle", icon: "⚔️" }, // 🆕 Ditambahkan di sini
     { name: "Papan Misi", href: "/missions", icon: "🎯" },
     { name: "Leaderboard", href: "/leaderboard", icon: "🏆" },
     { name: "Profil", href: "/profil", icon: "👤" },
