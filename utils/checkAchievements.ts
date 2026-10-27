@@ -3,16 +3,13 @@ import { ACHIEVEMENTS_KANJI } from "@/data/achievements-kanji";
 import { ACHIEVEMENTS_KOTOBA } from "@/data/achievements";
 import { playAchievementSound } from "./sound";
 
-// 🆕 Fungsi bantuan dengan pengaman BERLAPIS
 function triggerAchievement(id: string, type: "kanji" | "kotoba") {
-  // PENGAMAN 1: Cek apakah sudah ada di localStorage (permanen)
   const shownKey = `achievement_shown_permanent_${id}`;
   if (localStorage.getItem(shownKey)) {
     return; 
   }
   localStorage.setItem(shownKey, "true");
 
-  // PENGAMAN 2: Cek cooldown 1 jam
   const lastShown = localStorage.getItem(`last_achievement_time`);
   const now = Date.now();
   if (lastShown && now - parseInt(lastShown) < 60 * 60 * 1000) {
@@ -25,13 +22,9 @@ function triggerAchievement(id: string, type: "kanji" | "kotoba") {
   window.dispatchEvent(event);
 }
 
-// ==========================================
-// 1. CEK ACHIEVEMENT KANJI
-// ==========================================
 export function checkKanjiAchievements() {
   if (typeof window === "undefined") return;
 
-  // 🆕 PENGAMAN 1: Pastikan data benar-benar ada
   const masteredRaw = localStorage.getItem("masteredKanji");
   if (!masteredRaw) return;
 
@@ -43,7 +36,6 @@ export function checkKanjiAchievements() {
   let newUnlocked = false;
 
   ACHIEVEMENTS_KANJI.filter(a => a.type === "progress").forEach(ach => {
-    // 🆕 PENGAMAN 2: Pastikan targetCount valid dan belum unlock
     if (ach.targetCount && !unlocked.includes(ach.id) && mastered.length >= ach.targetCount) {
       unlocked.push(ach.id);
       newUnlocked = true;
@@ -56,9 +48,6 @@ export function checkKanjiAchievements() {
   }
 }
 
-// ==========================================
-// 2. CEK ACHIEVEMENT KOTOBA
-// ==========================================
 export async function checkKotobaAchievements() {
   if (typeof window === "undefined") return;
 

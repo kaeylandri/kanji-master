@@ -94,7 +94,6 @@ export async function syncDataToDatabase() {
     const existingKotoba = new Set((existingProgress || []).filter(p => p.item_type === 'kotoba').map(p => p.item_id));
 
     // 🆕 PENGAMAN: Jika DB kosong dan lokal ada isinya, kemungkinan ini data sisa akun lama.
-    // Kita paksa reset lokal agar user baru benar-benar bersih.
     const isFreshAccount = existingKanji.size === 0 && existingKotoba.size === 0;
     const hasLocalProgress = localMasteredKanji.length > 0 || localMasteredKotoba.length > 0;
 
@@ -103,7 +102,7 @@ export async function syncDataToDatabase() {
       localStorage.setItem("masteredKanji", JSON.stringify([]));
       localStorage.setItem("masteredKotoba", JSON.stringify([]));
       localStorage.setItem("uniqueKotobaAnswered", JSON.stringify([]));
-      return; // Hentikan sinkronisasi hafalan
+      return;
     }
 
     const newKanji = localMasteredKanji.filter((id: number) => !existingKanji.has(id));
@@ -122,7 +121,6 @@ export async function syncDataToDatabase() {
       await supabase.from('user_progress').upsert(progressData, { onConflict: 'user_id,item_type,item_id' });
     }
 
-    // 🆕 GABUNGKAN data dari DB + Local
     const allKanjiFromDB = Array.from(new Set([...existingKanji, ...newKanji]));
     const allKotobaFromDB = Array.from(new Set([...existingKotoba, ...newKotoba]));
     localStorage.setItem("masteredKanji", JSON.stringify(allKanjiFromDB));
@@ -150,7 +148,6 @@ export async function syncDataToDatabase() {
       localStorage.setItem("kanjiAchievements", JSON.stringify({ ...kanjiStats, unlocked: [] }));
       localStorage.setItem("kotobaExamStats", JSON.stringify({ ...kotobaStats, unlocked: [] }));
       
-      // Hapus juga penanda permanen agar achievement benar-benar fresh
       Object.keys(localStorage).forEach(key => {
         if (key.startsWith("achievement_shown_permanent_")) {
           localStorage.removeItem(key);
@@ -159,7 +156,7 @@ export async function syncDataToDatabase() {
       return;
     }
 
-    // 🆕 Gabungkan dengan achievement lokal (untuk user lama yang sync)
+    // Gabungkan dengan achievement lokal (untuk user lama yang sync)
     const combinedUnlockedKanji = Array.from(new Set([...localUnlockedKanji, ...dbUnlockedIds]));
     const combinedUnlockedKotoba = Array.from(new Set([...localUnlockedKotoba, ...dbUnlockedIds]));
 

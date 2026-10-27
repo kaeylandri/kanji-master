@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { supabase } from '@/utils/supabase';
 import { useRouter } from 'next/navigation';
 import { triggerToast } from '@/utils/toast';
-import Link from 'next/link'; // 🆕 Import Link
+import Link from 'next/link';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -14,7 +14,6 @@ export default function LoginPage() {
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
   
-  // State untuk Icon Mata
   const [showPassword, setShowPassword] = useState(false);
 
   const handleAuth = async (e: React.FormEvent) => {
@@ -25,23 +24,40 @@ export default function LoginPage() {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {
         triggerToast(error.message, "error");
+        setLoading(false);
       } else {
+        // 🆕 PEMBERSIHAN TOTAL SAAT LOGIN
+        // Hapus semua data dari sesi sebelumnya agar tidak bocor ke akun baru
+        localStorage.clear();
+        sessionStorage.clear();
+        
+        // Hapus cookie supabase
+        document.cookie.split(";").forEach((c) => {
+          document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+        });
+
         triggerToast("Selamat datang kembali! 🎉", "success");
-        setTimeout(() => router.push('/'), 1500);
+        
+        // 🆕 Gunakan window.location.href untuk memaksa reload total
+        // Ini memastikan AuthGuard dan syncEngine berjalan dari nol
+        setTimeout(() => {
+          window.location.href = "/";
+        }, 1000);
       }
     } else {
       const { data, error } = await supabase.auth.signUp({ email, password });
       if (error) {
         triggerToast(error.message, "error");
+        setLoading(false);
       } else if (data.user) {
         await supabase.from('profiles').insert([
           { id: data.user.id, username: username, bio: 'Halo! Aku sedang belajar bahasa Jepang 🇯🇵' }
         ]);
         triggerToast('Pendaftaran Berhasil! Silakan Masuk.', "success");
         setIsLogin(true);
+        setLoading(false);
       }
     }
-    setLoading(false);
   };
 
   return (
@@ -131,7 +147,6 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* 🆕 Link Lupa Password & Daftar */}
           <div className="mt-8 text-center space-y-2">
             <p className="text-sm text-slate-500">
               {isLogin ? "Belum punya akun? " : "Sudah punya akun? "}
