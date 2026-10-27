@@ -51,12 +51,27 @@ export default function ProfilPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState(profile);
 
+  // 🆕 LOGOUT BERSIH: Hapus semua jejak sesi lama
   const handleLogout = async () => {
     try {
-      await supabase.auth.signOut();
-      router.push("/login");
+      // 1. Logout dari Supabase
+      await supabase.auth.signOut({ scope: 'global' });
+      
+      // 2. Bersihkan semua data lokal secara paksa
+      localStorage.clear();
+      sessionStorage.clear();
+      
+      // 3. Hapus cookie Supabase
+      document.cookie.split(";").forEach((c) => {
+        document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+      });
+
+      // 4. Redirect dan refresh halaman
+      window.location.href = "/login";
     } catch (error) {
       console.error("Gagal logout:", error);
+      // Fallback jika terjadi error, tetap paksa redirect
+      window.location.href = "/login";
     }
   };
 
@@ -69,19 +84,19 @@ export default function ProfilPage() {
         return item ? JSON.parse(item) : fallback;
       };
 
-      // 🆕 1. Ambil data rekor
+      // 1. Ambil data rekor
       setSurvivalHighScore(parseInt(localStorage.getItem("survivalHighScore") || "0", 10));
       setExamHighScore(parseInt(localStorage.getItem("examHighScore") || "0", 10));
       const time = localStorage.getItem("randomBestTime");
       if (time && time !== "0") setRandomBestTime(parseInt(time, 10));
       else setRandomBestTime(null);
 
-      // 🆕 2. Ambil data hafalan
+      // 2. Ambil data hafalan
       setMasteredKanji(safeParse("masteredKanji", []));
       setMasteredKotoba(safeParse("masteredKotoba", []));
       setUniqueKotobaAnswered(safeParse("uniqueKotobaAnswered", []));
 
-      // 🆕 3. Ambil profil (termasuk Favorite)
+      // 3. Ambil profil (termasuk Favorite)
       const savedProfile = safeParse("userProfile", null);
       if (savedProfile) {
         if (!Array.isArray(savedProfile.favoriteKanjiIds)) {
@@ -91,7 +106,7 @@ export default function ProfilPage() {
         setEditForm(savedProfile);
       }
 
-      // 🆕 4. Ambil stats & inventory
+      // 4. Ambil stats & inventory
       const kotobaStats = safeParse("kotobaExamStats", {});
       if (kotobaStats.unlocked) setUnlockedKotoba(kotobaStats.unlocked);
 
@@ -110,7 +125,7 @@ export default function ProfilPage() {
       loadStreak();
       window.addEventListener("streakUpdated", loadStreak);
 
-      // 🆕 5. Fetch Kanji & Kotoba
+      // 5. Fetch Kanji & Kotoba
       fetch("/api/categories/semua/kanji")
         .then(res => res.json())
         .then(data => setKanjiList(data))
@@ -121,7 +136,7 @@ export default function ProfilPage() {
         .then(data => setKotobaList(data))
         .catch(() => {});
 
-      // 🆕 6. Fetch Teman
+      // 6. Fetch Teman
       const fetchFriends = async () => {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
@@ -188,7 +203,6 @@ export default function ProfilPage() {
   
   const title = getTitle(masteredKanji.length);
   
-  // 🆕 PENGAMAN: Pastikan favoriteKanjiIds ada dan filter data yang ditemukan
   const favoriteData = (profile.favoriteKanjiIds || [])
     .map(id => kanjiList.find(k => k.id === id))
     .filter((k): k is any => !!k);

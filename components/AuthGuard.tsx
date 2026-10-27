@@ -25,6 +25,9 @@ function AuthGuardContent({ children }: { children: React.ReactNode }) {
 
     const checkAuth = async () => {
       try {
+        // 🆕 Paksa refresh session agar tidak membaca token lama
+        await supabase.auth.refreshSession();
+        
         // Beri jeda agar Supabase siap
         await new Promise(resolve => setTimeout(resolve, 300));
         
