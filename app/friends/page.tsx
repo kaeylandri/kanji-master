@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/utils/supabase";
 import { triggerToast } from "@/utils/toast";
-import AppLayout from "@/components/AppLayout"; // Cukup AppLayout saja
+import AppLayout from "@/components/AppLayout";
 import Link from "next/link";
 
 export default function FriendsPage() {
@@ -20,7 +20,6 @@ export default function FriendsPage() {
       if (user) {
         setMyId(user.id);
 
-        // Ambil daftar orang yang sudah kita kirimi request
         const { data: friendData } = await supabase
           .from('friends')
           .select('friend_id')
@@ -29,7 +28,6 @@ export default function FriendsPage() {
         if (friendData) setRequestedIds(friendData.map(f => f.friend_id));
       }
 
-      // Ambil semua user dari database
       const { data, error } = await supabase.from('profiles').select('*');
       if (data) setUsers(data);
       if (error) console.error("Error fetching users:", error);
@@ -45,7 +43,6 @@ export default function FriendsPage() {
     setSearchQuery(searchInput);
   };
 
-  // Logika: Sembunyikan diri sendiri jika tidak sedang mencari
   const filteredUsers = users.filter(u => {
     const matchesSearch = u.username.toLowerCase().includes(searchQuery.toLowerCase());
     const isMe = u.id === myId;
@@ -93,7 +90,10 @@ export default function FriendsPage() {
               placeholder="Ketik username lalu tekan Enter..." 
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              className="w-full bg-white border-2 border-slate-200 rounded-2xl p-4 pl-12 outline-none focus:border-blue-500 shadow-sm transition text-lg font-medium"
+              className="w-full bg-white border-2 border-slate-200 rounded-2xl p-4 pl-12 outline-none focus:border-blue-500 shadow-sm transition 
+                         text-lg font-medium text-slate-800 placeholder:text-slate-500" 
+              // 🆕 text-slate-800 (teks yang diketik tegas)
+              // 🆕 placeholder:text-slate-500 (placeholder lebih jelas)
             />
             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xl text-slate-400">🔍</span>
           </div>

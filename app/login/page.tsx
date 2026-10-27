@@ -27,11 +27,10 @@ export default function LoginPage() {
         triggerToast(error.message, "error");
         setLoading(false);
       } else if (data.session) {
-        // 🆕 PENTING: Beri jeda agar Supabase menyimpan token sesi ke localStorage
+        // Beri jeda agar Supabase menyimpan token sesi ke localStorage
         await new Promise(resolve => setTimeout(resolve, 500));
 
-        // 🆕 HANYA hapus data game (JANGAN hapus semua localStorage)
-        // Ini mencegah token sesi Supabase ikut terhapus
+        // HANYA hapus data game (JANGAN hapus semua localStorage)
         const keysToRemove = [
           "masteredKanji", "masteredKotoba", "uniqueKotobaAnswered",
           "kanjiMaster.missions.v1", "kanjiMaster.streak.v1",
@@ -51,7 +50,7 @@ export default function LoginPage() {
 
         triggerToast("Selamat datang kembali! 🎉", "success");
         
-        // 🆕 Redirect setelah jeda
+        // Redirect setelah jeda
         setTimeout(() => {
           window.location.href = "/";
         }, 500);
@@ -111,7 +110,8 @@ export default function LoginPage() {
                   value={username} 
                   onChange={e => setUsername(e.target.value)} 
                   required 
-                  className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl p-3.5 mt-1 outline-none focus:border-blue-500 focus:bg-white transition" 
+                  className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl p-3.5 mt-1 outline-none focus:border-blue-500 focus:bg-white transition 
+                             text-slate-800 font-medium placeholder:text-slate-500" 
                   placeholder="Misal: Abdul Martin" 
                 />
               </div>
@@ -124,7 +124,8 @@ export default function LoginPage() {
                 value={email} 
                 onChange={e => setEmail(e.target.value)} 
                 required 
-                className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl p-3.5 mt-1 outline-none focus:border-blue-500 focus:bg-white transition" 
+                className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl p-3.5 mt-1 outline-none focus:border-blue-500 focus:bg-white transition 
+                           text-slate-800 font-medium placeholder:text-slate-500" 
                 placeholder="email@contoh.com" 
               />
             </div>
@@ -137,7 +138,8 @@ export default function LoginPage() {
                   value={password} 
                   onChange={e => setPassword(e.target.value)} 
                   required 
-                  className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl p-3.5 pr-12 outline-none focus:border-blue-500 focus:bg-white transition" 
+                  className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl p-3.5 pr-12 outline-none focus:border-blue-500 focus:bg-white transition 
+                             text-slate-800 font-medium placeholder:text-slate-500 placeholder:tracking-widest" 
                   placeholder="••••••••" 
                 />
                 <button
