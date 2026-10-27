@@ -13,34 +13,60 @@ export async function syncDataToDatabase() {
       .eq('id', user.id)
       .single();
 
-    if (dbError || !dbProfile) {
-      console.error("Gagal mengambil profil dari DB:", dbError);
+    if (dbError || !dbProfile) return;
+
+    // 🆕 DETEKSI AKUN BARU: Cek apakah profil di DB benar-benar kosong
+    const isNewAccountInDB = 
+      (dbProfile.total_exp || 0) === 0 && 
+      (dbProfile.sakura_coins || 0) === 0 && 
+      (dbProfile.mastered_kanji_count || 0) === 0;
+
+    // Cek apakah ada data lokal yang mencurigakan
+    const localMasteredKanjiRaw = localStorage.getItem("masteredKanji");
+    const localMasteredKanji = localMasteredKanjiRaw ? JSON.parse(localMasteredKanjiRaw) : [];
+    const hasStaleLocalData = localMasteredKanji.length > 0;
+
+    // 🆕 JIKA INI AKUN BARU TAPI LOKAL ADA DATA, HAPUS TOTAL SEMUA DATA LOKAL
+    if (isNewAccountInDB && hasStaleLocalData) {
+      console.log("🚨 Akun baru terdeteksi dengan data lokal sisa. Menghapus semua data lokal...");
+      
+      // Hapus SEMUA key yang berkaitan dengan game
+      const keysToDelete = [
+        "masteredKanji", "masteredKotoba", "uniqueKotobaAnswered",
+        "kanjiMaster.missions.v1", "kanjiMaster.streak.v1",
+        "userProfile", "kanjiAchievements", "kotobaExamStats",
+        "survivalHighScore", "examHighScore", "randomBestTime",
+        "shopEquipped", "shopInventory", "kanjiMaster.inventory.v1",
+        "last_fire_time", "last_fire_date", "last_achievement_time"
+      ];
+      
+      keysToDelete.forEach(key => localStorage.removeItem(key));
+      
+      // Hapus semua penanda achievement permanen
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith("achievement_shown_permanent_")) {
+          localStorage.removeItem(key);
+        }
+      });
+
+      // Paksa reload untuk memastikan UI bersih
+      window.location.reload();
       return;
     }
 
+    // --- SISA LOGIKA SINKRONISASI NORMAL ---
+    
     // 2. Ambil data dari LocalStorage
     const localProfile = JSON.parse(localStorage.getItem("userProfile") || "{}");
     const localMissions = JSON.parse(localStorage.getItem("kanjiMaster.missions.v1") || "{}");
     const localStreak = JSON.parse(localStorage.getItem("kanjiMaster.streak.v1") || "{}");
-    const localSurvival = parseInt(localStorage.getItem("survivalHighScore") || "0", 10);
-    const localExam = parseInt(localStorage.getItem("examHighScore") || "0", 10);
-    const localRandomTime = parseInt(localStorage.getItem("randomBestTime") || "0", 10);
 
-    // 3. Tentukan Data Final (Jangan pernah turunkan nilai)
+    // 3. Tentukan Data Final
     const finalExp = Math.max(dbProfile.total_exp || 0, localMissions.exp || 0);
     const finalCoins = Math.max(dbProfile.sakura_coins || 0, localMissions.coins || 0);
     const finalStreak = Math.max(dbProfile.current_streak || 0, localStreak.currentStreak || 0);
     const finalLongestStreak = Math.max(dbProfile.longest_streak || 0, localStreak.longestStreak || 0);
-    
-    // Rekor
-    const finalSurvival = Math.max(dbProfile.survival_high_score || 0, localSurvival);
-    const finalExam = Math.max(dbProfile.exam_high_score || 0, localExam);
-    let finalRandomTime = dbProfile.random_best_time || 0;
-    if (localRandomTime > 0) {
-      finalRandomTime = finalRandomTime > 0 ? Math.min(finalRandomTime, localRandomTime) : localRandomTime;
-    }
 
-    // PROFIL: Jika local kosong, PASTI pakai punya DB
     const finalUsername = localProfile.name || dbProfile.username || "Pengguna";
     const finalAvatar = localProfile.avatar || dbProfile.avatar_url || "";
     const finalBio = localProfile.bio || dbProfile.bio || "";
@@ -55,33 +81,22 @@ export async function syncDataToDatabase() {
       username: finalUsername,
       avatar_url: finalAvatar,
       bio: finalBio,
-      survival_high_score: finalSurvival,
-      exam_high_score: finalExam,
-      random_best_time: finalRandomTime,
     }).eq('id', user.id);
 
-    // 5. PAKSA LOCALSTORAGE MENGGUNAKAN DATA FINAL DARI DB
+    // 5. Sinkronkan ke LocalStorage
     const updatedMissions = { ...localMissions, exp: finalExp, coins: finalCoins };
     localStorage.setItem("kanjiMaster.missions.v1", JSON.stringify(updatedMissions));
-
-    const updatedStreak = { ...localStreak, currentStreak: finalStreak, longestStreak: finalLongestStreak };
-    localStorage.setItem("kanjiMaster.streak.v1", JSON.stringify(updatedStreak));
-
-    localStorage.setItem("survivalHighScore", finalSurvival.toString());
-    localStorage.setItem("examHighScore", finalExam.toString());
-    if (finalRandomTime > 0) localStorage.setItem("randomBestTime", finalRandomTime.toString());
 
     const updatedProfile = {
       ...localProfile,
       name: finalUsername,
       avatar: finalAvatar,
       bio: finalBio,
-      favoriteKanjiIds: finalFavorites, 
+      favoriteKanjiIds: finalFavorites,
     };
     localStorage.setItem("userProfile", JSON.stringify(updatedProfile));
 
-    // === 6. SINKRONISASI HAFALAN (KANJI & KOTOBA) ===
-    const localMasteredKanji = JSON.parse(localStorage.getItem("masteredKanji") || "[]");
+    // 6. Sinkronisasi Hafalan
     const localMasteredKotoba = JSON.parse(localStorage.getItem("masteredKotoba") || "[]");
     const uniqueKotoba = JSON.parse(localStorage.getItem("uniqueKotobaAnswered") || "[]");
 
@@ -93,28 +108,15 @@ export async function syncDataToDatabase() {
     const existingKanji = new Set((existingProgress || []).filter(p => p.item_type === 'kanji').map(p => p.item_id));
     const existingKotoba = new Set((existingProgress || []).filter(p => p.item_type === 'kotoba').map(p => p.item_id));
 
-    // 🆕 PENGAMAN: Jika DB kosong dan lokal ada isinya, kemungkinan ini data sisa akun lama.
-    const isFreshAccount = existingKanji.size === 0 && existingKotoba.size === 0;
-    const hasLocalProgress = localMasteredKanji.length > 0 || localMasteredKotoba.length > 0;
-
-    if (isFreshAccount && hasLocalProgress) {
-      console.log("Akun baru terdeteksi, membersihkan data hafalan lokal...");
-      localStorage.setItem("masteredKanji", JSON.stringify([]));
-      localStorage.setItem("masteredKotoba", JSON.stringify([]));
-      localStorage.setItem("uniqueKotobaAnswered", JSON.stringify([]));
-      return;
-    }
-
     const newKanji = localMasteredKanji.filter((id: number) => !existingKanji.has(id));
     const newKotoba = localMasteredKotoba.filter((id: number) => !existingKotoba.has(id));
-    const newUniqueKotoba = uniqueKotoba.filter((id: number) => !existingKotoba.has(id));
 
     const progressData: any[] = [];
     newKanji.forEach((id: number) => {
       progressData.push({ user_id: user.id, item_type: 'kanji', item_id: id, is_mastered: true });
     });
-    newUniqueKotoba.forEach((id: number) => {
-      progressData.push({ user_id: user.id, item_type: 'kotoba', item_id: id, is_mastered: newKotoba.includes(id) });
+    newKotoba.forEach((id: number) => {
+      progressData.push({ user_id: user.id, item_type: 'kotoba', item_id: id, is_mastered: true });
     });
 
     if (progressData.length > 0) {
@@ -126,7 +128,7 @@ export async function syncDataToDatabase() {
     localStorage.setItem("masteredKanji", JSON.stringify(allKanjiFromDB));
     localStorage.setItem("masteredKotoba", JSON.stringify(allKotobaFromDB));
 
-    // === 7. SINKRONISASI ACHIEVEMENT ===
+    // 7. Sinkronisasi Achievement
     const { data: dbAchievements } = await supabase
       .from('user_achievements')
       .select('achievement_id')
@@ -134,56 +136,18 @@ export async function syncDataToDatabase() {
 
     const dbUnlockedIds = (dbAchievements || []).map(a => a.achievement_id);
 
-    // 🆕 PENGAMAN: Jika DB kosong dan lokal ada isinya, reset lokal
     const kanjiStats = JSON.parse(localStorage.getItem("kanjiAchievements") || "{}");
     const kotobaStats = JSON.parse(localStorage.getItem("kotobaExamStats") || "{}");
     const localUnlockedKanji = kanjiStats.unlocked || [];
     const localUnlockedKotoba = kotobaStats.unlocked || [];
 
-    const isFreshAchievement = dbUnlockedIds.length === 0;
-    const hasLocalAchievement = localUnlockedKanji.length > 0 || localUnlockedKotoba.length > 0;
+    // Jika DB kosong, paksa local kosong juga
+    const finalUnlockedKanji = dbUnlockedIds.length === 0 ? [] : Array.from(new Set([...localUnlockedKanji, ...dbUnlockedIds]));
+    const finalUnlockedKotoba = dbUnlockedIds.length === 0 ? [] : Array.from(new Set([...localUnlockedKotoba, ...dbUnlockedIds]));
 
-    if (isFreshAchievement && hasLocalAchievement) {
-      console.log("Akun baru terdeteksi, membersihkan data achievement lokal...");
-      localStorage.setItem("kanjiAchievements", JSON.stringify({ ...kanjiStats, unlocked: [] }));
-      localStorage.setItem("kotobaExamStats", JSON.stringify({ ...kotobaStats, unlocked: [] }));
-      
-      Object.keys(localStorage).forEach(key => {
-        if (key.startsWith("achievement_shown_permanent_")) {
-          localStorage.removeItem(key);
-        }
-      });
-      return;
-    }
+    localStorage.setItem("kanjiAchievements", JSON.stringify({ ...kanjiStats, unlocked: finalUnlockedKanji }));
+    localStorage.setItem("kotobaExamStats", JSON.stringify({ ...kotobaStats, unlocked: finalUnlockedKotoba }));
 
-    // Gabungkan dengan achievement lokal (untuk user lama yang sync)
-    const combinedUnlockedKanji = Array.from(new Set([...localUnlockedKanji, ...dbUnlockedIds]));
-    const combinedUnlockedKotoba = Array.from(new Set([...localUnlockedKotoba, ...dbUnlockedIds]));
-
-    localStorage.setItem("kanjiAchievements", JSON.stringify({ 
-      ...kanjiStats, 
-      unlocked: combinedUnlockedKanji 
-    }));
-
-    localStorage.setItem("kotobaExamStats", JSON.stringify({ 
-      ...kotobaStats, 
-      unlocked: combinedUnlockedKotoba 
-    }));
-
-    // Sinkronkan kembali ke DB
-    const newAchKanji = localUnlockedKanji.filter((id: string) => !dbUnlockedIds.includes(id));
-    const newAchKotoba = localUnlockedKotoba.filter((id: string) => !dbUnlockedIds.includes(id));
-    const allNewAch = Array.from(new Set([...newAchKanji, ...newAchKotoba]));
-
-    if (allNewAch.length > 0) {
-      const achData = allNewAch.map((achId: string) => ({
-        user_id: user.id,
-        achievement_id: achId
-      }));
-      await supabase.from('user_achievements').upsert(achData, { onConflict: 'user_id,achievement_id' });
-    }
-
-    // 8. Trigger Event
     window.dispatchEvent(new Event("missionUpdated"));
     window.dispatchEvent(new Event("streakUpdated"));
     
