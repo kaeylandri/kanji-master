@@ -14,30 +14,46 @@ export default function BattleLobbyPage() {
   const [loading, setLoading] = useState(true);
   const [inviting, setInviting] = useState<string | null>(null);
 
-  // 1. Ambil data teman
+  // 1. Ambil data teman (Pendekatan 2 Langkah)
   useEffect(() => {
     async function fetchFriends() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return router.push('/login');
 
-      // Query teman (yang statusnya accepted)
-      const { data, error } = await supabase
+      // Langkah A: Ambil semua relasi pertemanan yang accepted
+      const { data: friendRows, error: friendError } = await supabase
         .from('friends')
-        .select(`
-          id, status, user_id, friend_id,
-          sender:profiles!friends_user_id_fkey(id, username, avatar_url),
-          receiver:profiles!friends_friend_id_fkey(id, username, avatar_url)
-        `)
+        .select('user_id, friend_id')
         .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`)
         .eq('status', 'accepted');
 
-      if (data) {
-        // Filter agar hanya menampilkan data teman (bukan diri sendiri)
-        const friendList = data.map(f => {
-          return f.user_id === user.id ? f.receiver : f.sender;
-        });
-        setFriends(friendList);
+      if (friendError || !friendRows) {
+        console.error("Gagal ambil relasi teman:", friendError);
+        setLoading(false);
+        return;
       }
+
+      // Kumpulkan ID teman (ambil yang bukan ID kita)
+      const friendIds = friendRows.map(f => f.user_id === user.id ? f.friend_id : f.user_id);
+
+      if (friendIds.length === 0) {
+        setFriends([]);
+        setLoading(false);
+        return;
+      }
+
+      // Langkah B: Ambil profil dari ID teman tersebut
+      const { data: profileRows, error: profileError } = await supabase
+        .from('profiles')
+        .select('id, username, avatar_url')
+        .in('id', friendIds);
+
+      if (profileError) {
+        console.error("Gagal ambil profil teman:", profileError);
+      } else if (profileRows) {
+        setFriends(profileRows);
+      }
+      
       setLoading(false);
     }
     fetchFriends();
@@ -62,7 +78,7 @@ export default function BattleLobbyPage() {
       
       if (!res.ok) throw new Error(data.error);
 
-      // Jika sukses, arahkan ke halaman ruang tunggu (matchId)
+      // Jika sukses, arahkan ke halaman ruang tunggu (room)
       router.push(`/battle/room/${data.matchId}`);
 
     } catch (err: any) {
@@ -107,7 +123,7 @@ export default function BattleLobbyPage() {
           <h2 className="font-bold text-slate-700 mb-4">2. Pilih Teman untuk Ditantang</h2>
           
           {loading ? (
-            <p className="text-center text-slate-500 py-8">Memuat daftar teman...</p>
+            <p className="text-center text-slate-500 py-8 animate-pulse">Memuat daftar teman...</p>
           ) : friends.length === 0 ? (
             <div className="text-center py-8">
               <p className="text-slate-500 mb-4">Kamu belum punya teman yang bisa ditantang.</p>
@@ -120,11 +136,11 @@ export default function BattleLobbyPage() {
               {friends.map((f) => (
                 <div key={f.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-full bg-slate-200 overflow-hidden">
+                    <div className="w-12 h-12 rounded-full bg-slate-200 overflow-hidden flex-shrink-0">
                       {f.avatar_url ? (
                         <img src={f.avatar_url} alt={f.username} className="w-full h-full object-cover" />
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center text-slate-400 font-bold">
+                        <div className="w-full h-full flex items-center justify-center text-slate-400 font-bold bg-emerald-100 text-emerald-600">
                           {f.username?.charAt(0).toUpperCase()}
                         </div>
                       )}

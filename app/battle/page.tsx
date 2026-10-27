@@ -3,15 +3,12 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { supabase } from "@/utils/supabase";
 
 export default function BattleHomePage() {
   const [stats, setStats] = useState({ wins: 0, losses: 0, draws: 0 });
   const [loading, setLoading] = useState(true);
 
-  // (Nanti kita sambungkan ini ke database untuk statistik asli)
   useEffect(() => {
-    // Simulasi fetch statistik
     setTimeout(() => {
       setStats({ wins: 0, losses: 0, draws: 0 });
       setLoading(false);
@@ -22,8 +19,15 @@ export default function BattleHomePage() {
     <div className="min-h-screen bg-slate-50 p-4 md:p-8">
       <div className="max-w-4xl mx-auto">
         
+        {/* Tombol Kembali */}
+        <div className="mb-6">
+          <Link href="/" className="inline-flex items-center gap-2 text-slate-500 hover:text-slate-800 font-semibold bg-white px-4 py-2 rounded-xl shadow-sm border border-slate-200 transition-all">
+            <span>⬅️</span> Kembali ke Dashboard
+          </Link>
+        </div>
+
         {/* Header */}
-        <div className="text-center mb-12 mt-8">
+        <div className="text-center mb-12">
           <h1 className="text-4xl md:text-5xl font-black text-slate-800 mb-4 tracking-tight">
             ⚔️ Sakura Battle
           </h1>
@@ -50,32 +54,29 @@ export default function BattleHomePage() {
 
         {/* Pilihan Mode */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-          {/* Kanji Mode */}
-          <button className="group bg-white rounded-3xl p-8 shadow-sm border-2 border-slate-200 hover:border-blue-500 hover:shadow-md transition-all flex flex-col items-center text-center">
+          <Link href="/battle/lobby" className="group bg-white rounded-3xl p-8 shadow-sm border-2 border-slate-200 hover:border-blue-500 hover:shadow-md transition-all flex flex-col items-center text-center">
             <div className="w-20 h-20 bg-blue-100 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
               <span className="text-4xl">📚</span>
             </div>
             <h3 className="text-xl font-bold text-slate-800 mb-2">Kanji Battle</h3>
             <p className="text-sm text-slate-500">Uji hafalan Kanji kamu melawan lawan secara langsung.</p>
-          </button>
+          </Link>
 
-          {/* Kotoba Mode */}
-          <button className="group bg-white rounded-3xl p-8 shadow-sm border-2 border-slate-200 hover:border-emerald-500 hover:shadow-md transition-all flex flex-col items-center text-center">
+          <Link href="/battle/lobby" className="group bg-white rounded-3xl p-8 shadow-sm border-2 border-slate-200 hover:border-emerald-500 hover:shadow-md transition-all flex flex-col items-center text-center">
             <div className="w-20 h-20 bg-emerald-100 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
               <span className="text-4xl">📖</span>
             </div>
             <h3 className="text-xl font-bold text-slate-800 mb-2">Kotoba Battle</h3>
             <p className="text-sm text-slate-500">Adu kecepatan mengingat kosakata (Kotoba) bahasa Jepang.</p>
-          </button>
+          </Link>
 
-          {/* Random Mode */}
-          <button className="group bg-white rounded-3xl p-8 shadow-sm border-2 border-slate-200 hover:border-purple-500 hover:shadow-md transition-all flex flex-col items-center text-center">
+          <Link href="/battle/lobby" className="group bg-white rounded-3xl p-8 shadow-sm border-2 border-slate-200 hover:border-purple-500 hover:shadow-md transition-all flex flex-col items-center text-center">
             <div className="w-20 h-20 bg-purple-100 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
               <span className="text-4xl">🎲</span>
             </div>
             <h3 className="text-xl font-bold text-slate-800 mb-2">Random Battle</h3>
             <p className="text-sm text-slate-500">Campuran Kanji dan Kotoba. Siapkan mentalmu!</p>
-          </button>
+          </Link>
         </div>
 
         {/* Tombol Tantang Teman */}
