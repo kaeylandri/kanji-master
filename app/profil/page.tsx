@@ -28,8 +28,10 @@ export default function ProfilPage() {
   const [kotobaList, setKotobaList] = useState<any[]>([]);
   const [kanjiList, setKanjiList] = useState<any[]>([]);
   
+  // 🆕 Tambahkan email ke state profile
   const [profile, setProfile] = useState({
     name: "Pengguna Baru",
+    email: "",
     bio: "Halo! Aku sedang belajar bahasa Jepang 🇯🇵",
     avatar: "",
     favoriteKanjiIds: [] as number[],
@@ -51,26 +53,18 @@ export default function ProfilPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState(profile);
 
-  // 🆕 LOGOUT BERSIH: Hapus semua jejak sesi lama
+  // LOGOUT BERSIH
   const handleLogout = async () => {
     try {
-      // 1. Logout dari Supabase
       await supabase.auth.signOut({ scope: 'global' });
-      
-      // 2. Bersihkan semua data lokal secara paksa
       localStorage.clear();
       sessionStorage.clear();
-      
-      // 3. Hapus cookie Supabase
       document.cookie.split(";").forEach((c) => {
         document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
       });
-
-      // 4. Redirect dan refresh halaman
       window.location.href = "/login";
     } catch (error) {
       console.error("Gagal logout:", error);
-      // Fallback jika terjadi error, tetap paksa redirect
       window.location.href = "/login";
     }
   };
@@ -96,7 +90,7 @@ export default function ProfilPage() {
       setMasteredKotoba(safeParse("masteredKotoba", []));
       setUniqueKotobaAnswered(safeParse("uniqueKotobaAnswered", []));
 
-      // 3. Ambil profil (termasuk Favorite)
+      // 3. Ambil profil (termasuk Favorite dan Email)
       const savedProfile = safeParse("userProfile", null);
       if (savedProfile) {
         if (!Array.isArray(savedProfile.favoriteKanjiIds)) {
@@ -105,6 +99,18 @@ export default function ProfilPage() {
         setProfile(savedProfile);
         setEditForm(savedProfile);
       }
+
+      // 🆕 Ambil email dari Supabase Auth (jika belum ada di profile)
+      const fetchUserEmail = async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user?.email && !savedProfile?.email) {
+          const updatedProfile = { ...savedProfile, email: user.email };
+          setProfile(updatedProfile);
+          setEditForm(updatedProfile);
+          localStorage.setItem("userProfile", JSON.stringify(updatedProfile));
+        }
+      };
+      fetchUserEmail();
 
       // 4. Ambil stats & inventory
       const kotobaStats = safeParse("kotobaExamStats", {});
@@ -301,6 +307,8 @@ export default function ProfilPage() {
                 )}
               </div>
               
+              {/* 🆕 Tampilkan Email */}
+              <p className="text-sm text-slate-500 mb-1">📧 {profile.email || "Email belum diatur"}</p>
               <p className="text-sm text-slate-500 mb-3">Terakhir aktif: {streak?.lastActiveDate || "Belum pernah"}</p>
               
               <div className="inline-flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg text-sm font-bold text-slate-600 mb-4 shadow-sm">
@@ -313,6 +321,12 @@ export default function ProfilPage() {
                   <div>
                     <label className="text-sm font-bold text-slate-600">Nama</label>
                     <input type="text" value={editForm.name} onChange={e => setEditForm({...editForm, name: e.target.value})} className="w-full bg-white border border-slate-300 rounded-lg p-2 mt-1 text-slate-800 focus:border-blue-500 outline-none" />
+                  </div>
+                  {/* 🆕 Email tidak bisa diedit (read-only) karena terikat ke akun Supabase */}
+                  <div>
+                    <label className="text-sm font-bold text-slate-600">Email</label>
+                    <input type="email" value={editForm.email || ""} readOnly className="w-full bg-slate-200 border border-slate-300 rounded-lg p-2 mt-1 text-slate-500 cursor-not-allowed outline-none" />
+                    <p className="text-xs text-slate-400 mt-1">Email terikat dengan akun dan tidak dapat diubah.</p>
                   </div>
                   <div>
                     <label className="text-sm font-bold text-slate-600">Bio</label>
