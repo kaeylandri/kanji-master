@@ -2,7 +2,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { KANJI_DATA } from "@/data/kanji";
-// import KOTOBA_DATA from "@/data/kotoba.json"; // Sesuaikan path-mu
+import KOTOBA_DATA from "@/data/kotoba.json"; // Pastikan file JSON ini ada di folder data/
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -10,28 +10,53 @@ const supabaseAdmin = createClient(
 );
 
 // Fungsi helper untuk generate soal
-function generateQuestions(mode: 'kanji'|'kotoba'|'random', count: number = 50) {
+function generateQuestions(mode: 'kanji' | 'kotoba' | 'random', count: number = 50) {
   let pool: any[] = [];
+  
+  // Masukkan data Kanji jika mode kanji atau random
   if (mode === 'kanji' || mode === 'random') {
-    pool = [...pool, ...KANJI_DATA.map(k => ({
-      type: 'kanji', id: k.id, text: k.character, correct: k.hiragana, wrongs: [k.meaning, k.romaji]
-    }))];
-  }
-  // if (mode === 'kotoba' || mode === 'random') {
-  //   pool = [...pool, ...KOTOBA_DATA.map(k => ({
-  //     type: 'kotoba', id: k.id, text: k.word, correct: k.meaning, wrongs: [k.reading]
-  //   }))];
-  // }
+    pool = [...pool, ...KANJI_DATA.map(k => {
+      // Ambil 3 distraktor (jawaban salah) dari data lain secara acak
+      const otherKanji = KANJI_DATA.filter(x => x.id !== k.id);
+      const shuffled = otherKanji.sort(() => 0.5 - Math.random());
+      const wrongs = shuffled.slice(0, 3).map(x => x.meaning);
 
-  // Acak pool
+      return {
+        type: 'kanji', 
+        id: k.id, 
+        text: k.character, 
+        correct: k.meaning, // Tebak artinya
+        wrongs: wrongs
+      };
+    })];
+  }
+
+  // Masukkan data Kotoba jika mode kotoba atau random
+  if (mode === 'kotoba' || mode === 'random') {
+    pool = [...pool, ...KOTOBA_DATA.map((k: any) => {
+      // Ambil 3 distraktor (jawaban salah) dari data lain secara acak
+      const otherKotoba = KOTOBA_DATA.filter((x: any) => x.id !== k.id);
+      const shuffled = otherKotoba.sort(() => 0.5 - Math.random());
+      const wrongs = shuffled.slice(0, 3).map((x: any) => x.meaning);
+
+      return {
+        type: 'kotoba', 
+        id: k.id, 
+        text: k.word, 
+        correct: k.meaning, 
+        wrongs: wrongs
+      };
+    })];
+  }
+
+  // Acak urutan soal secara keseluruhan
   pool.sort(() => Math.random() - 0.5);
   const selected = pool.slice(0, count);
 
   return selected.map((item) => {
-    // Ambil 3 jawaban salah dari data lain (dummy logic)
-    const wrongOptions = item.wrongs.slice(0, 3); 
-    // Gabung dan acak opsi
-    const options = [item.correct, ...wrongOptions].sort(() => Math.random() - 0.5);
+    // Gabungkan jawaban benar dan 3 jawaban salah, lalu acak posisinya
+    const options = [item.correct, ...item.wrongs].sort(() => Math.random() - 0.5);
+    
     return {
       item_type: item.type,
       item_id: item.id,
@@ -47,6 +72,7 @@ export async function POST(req: Request) {
     // 1. Auth check
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    
     const token = authHeader.replace("Bearer ", "");
     const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
     if (authError || !user) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
@@ -55,7 +81,7 @@ export async function POST(req: Request) {
 
     if (user.id === receiverId) return NextResponse.json({ error: "Tidak bisa menantang diri sendiri" }, { status: 400 });
 
-    // 2. Cek apakah mereka berteman (accepted)
+    // 2. Cek apakah mereka berteman (status: accepted)
     const { data: friendship } = await supabaseAdmin
       .from('friends')
       .select('id')
@@ -65,7 +91,7 @@ export async function POST(req: Request) {
 
     if (!friendship) return NextResponse.json({ error: "Hanya bisa menantang teman" }, { status: 403 });
 
-    // 3. Cek apakah salah satu sedang dalam match aktif
+    // 3. Cek apakah salah satu sedang dalam match aktif (mencegah double match)
     const { data: activeMatch } = await supabaseAdmin
       .from('battle_participants')
       .select('match_id')
@@ -91,20 +117,25 @@ export async function POST(req: Request) {
       question_order: index + 1,
       ...q
     }));
-    await supabaseAdmin.from('battle_questions').insert(questionsInsert);
+    
+    const { error: qError } = await supabaseAdmin.from('battle_questions').insert(questionsInsert);
+    if (qError) throw new Error("Gagal membuat soal: " + qError.message);
 
     // 6. Daftarkan peserta (Pengirim & Penerima)
-    await supabaseAdmin.from('battle_participants').insert([
+    const { error: pError } = await supabaseAdmin.from('battle_participants').insert([
       { match_id: match.id, user_id: user.id, status: 'ready' },
       { match_id: match.id, user_id: receiverId, status: 'waiting' }
     ]);
+    if (pError) throw new Error("Gagal mendaftarkan peserta: " + pError.message);
 
     // 7. Buat Undangan
-    const { data: invite } = await supabaseAdmin
+    const { data: invite, error: inviteError } = await supabaseAdmin
       .from('battle_invites')
       .insert({ match_id: match.id, sender_id: user.id, receiver_id: receiverId, status: 'pending' })
       .select()
       .single();
+
+    if (inviteError) throw new Error("Gagal membuat undangan: " + inviteError.message);
 
     return NextResponse.json({ success: true, invite, matchId: match.id });
 
