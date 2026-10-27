@@ -16,7 +16,6 @@ function generateQuestions(mode: 'kanji' | 'kotoba' | 'random', count: number = 
   // Masukkan data Kanji jika mode kanji atau random
   if (mode === 'kanji' || mode === 'random') {
     pool = [...pool, ...KANJI_DATA.map(k => {
-      // Ambil 3 distraktor (jawaban salah) dari data lain secara acak
       const otherKanji = KANJI_DATA.filter(x => x.id !== k.id);
       const shuffled = otherKanji.sort(() => 0.5 - Math.random());
       const wrongs = shuffled.slice(0, 3).map(x => x.meaning);
@@ -25,7 +24,7 @@ function generateQuestions(mode: 'kanji' | 'kotoba' | 'random', count: number = 
         type: 'kanji', 
         id: k.id, 
         text: k.character, 
-        correct: k.meaning, // Tebak artinya
+        correct: k.meaning, 
         wrongs: wrongs
       };
     })];
@@ -34,7 +33,6 @@ function generateQuestions(mode: 'kanji' | 'kotoba' | 'random', count: number = 
   // Masukkan data Kotoba jika mode kotoba atau random
   if (mode === 'kotoba' || mode === 'random') {
     pool = [...pool, ...KOTOBA_DATA.map((k: any) => {
-      // Ambil 3 distraktor (jawaban salah) dari data lain secara acak
       const otherKotoba = KOTOBA_DATA.filter((x: any) => x.id !== k.id);
       const shuffled = otherKotoba.sort(() => 0.5 - Math.random());
       const wrongs = shuffled.slice(0, 3).map((x: any) => x.meaning);
@@ -54,7 +52,6 @@ function generateQuestions(mode: 'kanji' | 'kotoba' | 'random', count: number = 
   const selected = pool.slice(0, count);
 
   return selected.map((item) => {
-    // Gabungkan jawaban benar dan 3 jawaban salah, lalu acak posisinya
     const options = [item.correct, ...item.wrongs].sort(() => Math.random() - 0.5);
     
     return {
@@ -91,15 +88,30 @@ export async function POST(req: Request) {
 
     if (!friendship) return NextResponse.json({ error: "Hanya bisa menantang teman" }, { status: 403 });
 
-    // 3. Cek apakah salah satu sedang dalam match aktif (mencegah double match)
+    // =========================================================================
+    // 3. CEK APAKAH SEDANG DALAM MATCH AKTIF (DENGAN LOGIKA AUTO-CANCEL)
+    // =========================================================================
     const { data: activeMatch } = await supabaseAdmin
       .from('battle_participants')
-      .select('match_id')
+      .select('match_id, battle_matches!inner(status, created_at)')
       .in('user_id', [user.id, receiverId])
       .in('status', ['waiting', 'active', 'paused'])
       .maybeSingle();
 
-    if (activeMatch) return NextResponse.json({ error: "Pemain sedang dalam pertandingan lain" }, { status: 400 });
+    if (activeMatch) {
+      const matchData = (activeMatch as any).battle_matches;
+      const matchAgeMs = new Date().getTime() - new Date(matchData.created_at).getTime();
+      const isStale = matchAgeMs > 10 * 60 * 1000; // 10 Menit
+
+      // Jika match masih 'waiting' tapi sudah lebih dari 10 menit, batalkan otomatis
+      if (isStale && matchData.status === 'waiting') {
+        await supabaseAdmin.from('battle_matches').update({ status: 'cancelled' }).eq('id', activeMatch.match_id);
+      } else {
+        // Jika match masih baru atau sedang aktif dimainkan, tolak undangan baru
+        return NextResponse.json({ error: "Pemain sedang dalam pertandingan lain" }, { status: 400 });
+      }
+    }
+    // =========================================================================
 
     // 4. Buat Match (Status Waiting)
     const { data: match, error: matchError } = await supabaseAdmin
