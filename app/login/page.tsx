@@ -72,8 +72,49 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex bg-slate-50">
+    <div className="min-h-screen flex bg-slate-50 relative">
       
+      {/* 🆕 OVERLAY LOADING */}
+      {loading && (
+        <div className="fixed inset-0 z-[9999] bg-slate-900/70 backdrop-blur-sm flex flex-col items-center justify-center animate-in fade-in duration-300">
+          <div className="bg-white rounded-3xl p-8 sm:p-10 shadow-2xl flex flex-col items-center max-w-sm w-full mx-4">
+            {/* Spinner */}
+            <div className="relative w-20 h-20 mb-6">
+              <div className="absolute inset-0 rounded-full border-4 border-blue-100"></div>
+              <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-blue-500 border-r-blue-500 animate-spin"></div>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-3xl animate-bounce">🎌</span>
+              </div>
+            </div>
+            
+            {/* Progress Bar */}
+            <div className="w-48 h-2 bg-slate-200 rounded-full overflow-hidden mb-4">
+              <div className="h-full bg-gradient-to-r from-blue-400 via-indigo-500 to-blue-400 rounded-full animate-loading-bar"></div>
+            </div>
+            
+            {/* Teks */}
+            <h2 className="text-lg font-bold text-slate-800 mb-1">
+              {isLogin ? "Memverifikasi akun..." : "Membuat akun baru..."}
+            </h2>
+            <p className="text-sm text-slate-500 animate-pulse text-center">
+              {isLogin ? "Menyiapkan dashboard kamu" : "Menyiapkan profil kamu"}
+            </p>
+          </div>
+
+          {/* CSS Animasi */}
+          <style jsx>{`
+            @keyframes loading-bar {
+              0% { width: 0%; transform: translateX(-100%); }
+              50% { width: 70%; transform: translateX(0%); }
+              100% { width: 100%; transform: translateX(100%); }
+            }
+            .animate-loading-bar {
+              animation: loading-bar 2s ease-in-out infinite;
+            }
+          `}</style>
+        </div>
+      )}
+
       {/* Sisi Kiri: Ilustrasi / Branding (Sembunyi di HP) */}
       <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-blue-500 to-indigo-700 relative overflow-hidden items-center justify-center p-12">
         <div className="absolute top-10 left-10 text-9xl opacity-10 select-none">🌸</div>
