@@ -7,6 +7,7 @@ import { getMissionsState, getPeriodKey, claimReward } from "@/utils/missionEngi
 import { triggerToast } from "@/utils/toast";
 import AppLayout from "@/components/AppLayout";
 import AchievementTab from "@/components/AchievementTab";
+import LoadingScreen from "@/components/LoadingScreen"; // 🆕 Import
 
 export default function MissionsPage() {
   const [state, setState] = useState<any>(null);

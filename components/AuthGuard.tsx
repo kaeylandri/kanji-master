@@ -6,6 +6,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { supabase } from "@/utils/supabase";
 import { syncDataToDatabase } from "@/utils/syncEngine";
 import { checkStreakExpiry } from "@/utils/luckyEngine";
+import LoadingScreen from "./LoadingScreen"; // 🆕 Import
 
 function AuthGuardContent({ children }: { children: React.ReactNode }) {
   const router = useRouter();
