@@ -14,27 +14,37 @@ export default function BattleLobbyPage() {
   const [loading, setLoading] = useState(true);
   const [inviting, setInviting] = useState<string | null>(null);
 
-  // 1. Ambil data teman (Pendekatan 2 Langkah)
+  // 1. Ambil data teman (Versi 2: Lebih Aman)
   useEffect(() => {
     async function fetchFriends() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return router.push('/login');
 
-      // Langkah A: Ambil semua relasi pertemanan yang accepted
-      const { data: friendRows, error: friendError } = await supabase
+      // A. Ambil relasi di mana KITA sebagai pengirim
+      const { data: req1, error: err1 } = await supabase
         .from('friends')
-        .select('user_id, friend_id')
-        .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`)
+        .select('user_id, friend_id, status')
+        .eq('user_id', user.id)
         .eq('status', 'accepted');
 
-      if (friendError || !friendRows) {
-        console.error("Gagal ambil relasi teman:", friendError);
+      // B. Ambil relasi di mana KITA sebagai penerima
+      const { data: req2, error: err2 } = await supabase
+        .from('friends')
+        .select('user_id, friend_id, status')
+        .eq('friend_id', user.id)
+        .eq('status', 'accepted');
+
+      if (err1 || err2) {
+        console.error("Gagal mengambil relasi pertemanan:", err1 || err2);
         setLoading(false);
         return;
       }
 
-      // Kumpulkan ID teman (ambil yang bukan ID kita)
-      const friendIds = friendRows.map(f => f.user_id === user.id ? f.friend_id : f.user_id);
+      // Kumpulkan ID teman
+      const friendIds = [
+        ...(req1?.map(r => r.friend_id) || []),
+        ...(req2?.map(r => r.user_id) || [])
+      ];
 
       if (friendIds.length === 0) {
         setFriends([]);
@@ -42,16 +52,16 @@ export default function BattleLobbyPage() {
         return;
       }
 
-      // Langkah B: Ambil profil dari ID teman tersebut
-      const { data: profileRows, error: profileError } = await supabase
+      // C. Ambil Profil dari ID Teman tersebut
+      const { data: profiles, error: profErr } = await supabase
         .from('profiles')
         .select('id, username, avatar_url')
         .in('id', friendIds);
 
-      if (profileError) {
-        console.error("Gagal ambil profil teman:", profileError);
-      } else if (profileRows) {
-        setFriends(profileRows);
+      if (profErr) {
+        console.error("Gagal mengambil profil:", profErr);
+      } else if (profiles) {
+        setFriends(profiles);
       }
       
       setLoading(false);
