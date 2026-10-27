@@ -6,39 +6,45 @@ import { playFireSound } from "@/utils/sound";
 
 export default function FireIgnition() {
   const [isVisible, setIsVisible] = useState(false);
-  const [animationKey, setAnimationKey] = useState(0); // 🆕 Key untuk reset animasi
+  const [animationKey, setAnimationKey] = useState(0);
 
   useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
+    let hideTimeout: NodeJS.Timeout;
+    let showTimeout: NodeJS.Timeout;
 
     const triggerFire = () => {
-      // 🆕 Reset animasi setiap kali dipicu
+      // Reset state & animation key
       setIsVisible(false);
       setAnimationKey((prev) => prev + 1);
       
-      // Beri sedikit delay agar React sempat mereset state
-      setTimeout(() => {
+      // Delay sedikit agar React sempat merender ulang
+      showTimeout = setTimeout(() => {
         setIsVisible(true);
         playFireSound(); 
 
-        // Sembunyikan setelah 3 detik
-        timeoutId = setTimeout(() => {
+        // Sembunyikan setelah 3 detik (animasi CSS juga selesai di 3 detik)
+        hideTimeout = setTimeout(() => {
           setIsVisible(false);
         }, 3000);
       }, 50);
     };
 
     window.addEventListener("fire-ignition", triggerFire);
+    
     return () => {
       window.removeEventListener("fire-ignition", triggerFire);
-      if (timeoutId) clearTimeout(timeoutId);
+      if (showTimeout) clearTimeout(showTimeout);
+      if (hideTimeout) clearTimeout(hideTimeout);
     };
   }, []);
 
   if (!isVisible) return null;
 
   return (
-    <div key={animationKey} className="fixed inset-0 z-[9999] pointer-events-none overflow-hidden flex items-end justify-center">
+    <div 
+      key={animationKey} 
+      className="fixed inset-0 z-[9999] pointer-events-none overflow-hidden flex items-end justify-center"
+    >
       {/* Glow Latar Belakang */}
       <div className="absolute inset-0 bg-gradient-to-t from-orange-500/60 via-red-600/20 to-transparent animate-fire-rise" />
       

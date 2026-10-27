@@ -1,3 +1,4 @@
+/* app/globals.css */
 @import "tailwindcss";
 
 :root {
@@ -7,15 +8,15 @@
 
 @theme {
   /* Palet Warna Kustom Kanji Master */
-  --color-brand-bg: #f8fafc;        /* Background utama (sangat terang) */
-  --color-brand-sidebar: #ffffff;   /* Background sidebar (putih) */
-  --color-brand-text: #1e293b;      /* Teks utama (slate-800) */
-  --color-brand-muted: #64748b;     /* Teks sekunder (slate-500) */
+  --color-brand-bg: #f8fafc;
+  --color-brand-sidebar: #ffffff;
+  --color-brand-text: #1e293b;
+  --color-brand-muted: #64748b;
   
-  --color-brand-blue: #6366f1;      /* Indigo lembut untuk Kanji */
-  --color-brand-green: #10b981;     /* Emerald lembut untuk Kotoba */
-  --color-brand-pink: #f43f5e;      /* Rose lembut untuk Sakura */
-  --color-brand-orange: #f97316;    /* Oranye lembut untuk Streak */
+  --color-brand-blue: #6366f1;
+  --color-brand-green: #10b981;
+  --color-brand-pink: #f43f5e;
+  --color-brand-orange: #f97316;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -30,13 +31,28 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
-/* 🆕 Animasi Api untuk Daily Streak */
 
-@keyframes fire-flicker {
-  0%, 100% { transform: scale(1) rotate(-2deg); opacity: 1; }
-  50% { transform: scale(1.05) rotate(2deg); opacity: 0.9; }
+/* ========================================= */
+/* 🆕 ANIMASI API STREAK (DIGABUNG & DIBERSIHKAN) */
+/* ========================================= */
+
+/* Animasi Api dari Bawah */
+@keyframes fire-rise {
+  0% { transform: translateY(100%) scale(0.8); opacity: 0; }
+  30% { transform: translateY(0) scale(1.1); opacity: 1; }
+  70% { transform: translateY(0) scale(1); opacity: 1; }
+  100% { transform: translateY(10%) scale(0.9); opacity: 0; }
 }
 
+/* Animasi Api Berkobar (Flicker) */
+@keyframes fire-flicker {
+  0%, 100% { transform: scale(1) rotate(-2deg); }
+  25% { transform: scale(1.08) rotate(3deg); }
+  50% { transform: scale(0.95) rotate(-3deg); }
+  75% { transform: scale(1.05) rotate(2deg); }
+}
+
+/* Animasi Api Marah (untuk fire-high di profil) */
 @keyframes fire-rage {
   0% { transform: scale(1) translateY(0); filter: brightness(1); }
   25% { transform: scale(1.1) translateY(-2px); filter: brightness(1.2); }
@@ -45,6 +61,17 @@ body {
   100% { transform: scale(1) translateY(0); filter: brightness(1); }
 }
 
+/* Class Animasi */
+.animate-fire-rise {
+  /* 🆕 GUNAKAN forwards AGAR BERHENTI DI OPACITY 0 */
+  animation: fire-rise 3s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+
+.animate-fire-flicker {
+  animation: fire-flicker 0.5s infinite ease-in-out;
+}
+
+/* Class untuk Ikon Api di Profil */
 .fire-dead {
   filter: grayscale(100%) opacity(50%);
 }
@@ -63,39 +90,14 @@ body {
   animation: fire-rage 1.5s infinite ease-in-out;
   filter: drop-shadow(0 0 20px rgba(239, 68, 68, 0.9)) drop-shadow(0 0 40px rgba(249, 115, 22, 0.6));
 }
-/* Animasi Api dari Bawah */
-@keyframes fire-rise {
-  0% { transform: translateY(100%) scale(0.8); opacity: 0; }
-  30% { transform: translateY(0) scale(1.1); opacity: 1; }
-  70% { transform: translateY(0) scale(1); opacity: 1; }
-  100% { transform: translateY(10%) scale(0.9); opacity: 0; }
-}
 
-/* Animasi Api Berkobar */
-@keyframes fire-flicker {
-  0%, 100% { transform: scale(1) rotate(-2deg); }
-  25% { transform: scale(1.08) rotate(3deg); }
-  50% { transform: scale(0.95) rotate(-3deg); }
-  75% { transform: scale(1.05) rotate(2deg); }
-}
-
-.animate-fire-rise {
-  animation: fire-rise 3s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
-}
-
-.animate-fire-flicker {
-  animation: fire-flicker 0.5s infinite ease-in-out;
-}
-/* app/globals.css */
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
+/* ========================================= */
 /* 🆕 Sembunyikan scrollbar untuk header di HP */
+/* ========================================= */
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
 .no-scrollbar {
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;  /* Firefox */
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
