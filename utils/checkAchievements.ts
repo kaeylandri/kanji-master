@@ -12,11 +12,10 @@ function triggerAchievement(id: string, type: "kanji" | "kotoba") {
   }
   localStorage.setItem(shownKey, "true");
 
-  // PENGAMAN 2: Cek cooldown 1 jam (mencegah spam saat testing)
+  // PENGAMAN 2: Cek cooldown 1 jam
   const lastShown = localStorage.getItem(`last_achievement_time`);
   const now = Date.now();
   if (lastShown && now - parseInt(lastShown) < 60 * 60 * 1000) {
-    console.log("Achievement cooldown aktif, skip.");
     return;
   }
   localStorage.setItem(`last_achievement_time`, now.toString());
@@ -32,14 +31,20 @@ function triggerAchievement(id: string, type: "kanji" | "kotoba") {
 export function checkKanjiAchievements() {
   if (typeof window === "undefined") return;
 
-  const mastered = JSON.parse(localStorage.getItem("masteredKanji") || "[]");
+  // 🆕 PENGAMAN 1: Pastikan data benar-benar ada
+  const masteredRaw = localStorage.getItem("masteredKanji");
+  if (!masteredRaw) return;
+
+  const mastered = JSON.parse(masteredRaw);
+  if (!Array.isArray(mastered) || mastered.length === 0) return;
+
   const stats = JSON.parse(localStorage.getItem("kanjiAchievements") || "{}");
   const unlocked = stats.unlocked || [];
   let newUnlocked = false;
 
   ACHIEVEMENTS_KANJI.filter(a => a.type === "progress").forEach(ach => {
-    // 🆕 PENGAMAN: Cek apakah sudah ada di array unlocked
-    if (!unlocked.includes(ach.id) && mastered.length >= (ach.targetCount || 0)) {
+    // 🆕 PENGAMAN 2: Pastikan targetCount valid dan belum unlock
+    if (ach.targetCount && !unlocked.includes(ach.id) && mastered.length >= ach.targetCount) {
       unlocked.push(ach.id);
       newUnlocked = true;
       triggerAchievement(ach.id, "kanji");
@@ -58,6 +63,8 @@ export async function checkKotobaAchievements() {
   if (typeof window === "undefined") return;
 
   const uniqueAnswered = JSON.parse(localStorage.getItem("uniqueKotobaAnswered") || "[]");
+  if (uniqueAnswered.length === 0) return;
+
   const stats = JSON.parse(localStorage.getItem("kotobaExamStats") || "{}");
   const unlocked = stats.unlocked || [];
   let newUnlocked = false;

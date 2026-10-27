@@ -93,6 +93,19 @@ export async function syncDataToDatabase() {
     const existingKanji = new Set((existingProgress || []).filter(p => p.item_type === 'kanji').map(p => p.item_id));
     const existingKotoba = new Set((existingProgress || []).filter(p => p.item_type === 'kotoba').map(p => p.item_id));
 
+    // 🆕 PENGAMAN: Jika DB kosong dan lokal ada isinya, kemungkinan ini data sisa akun lama.
+    // Kita paksa reset lokal agar user baru benar-benar bersih.
+    const isFreshAccount = existingKanji.size === 0 && existingKotoba.size === 0;
+    const hasLocalProgress = localMasteredKanji.length > 0 || localMasteredKotoba.length > 0;
+
+    if (isFreshAccount && hasLocalProgress) {
+      console.log("Akun baru terdeteksi, membersihkan data hafalan lokal...");
+      localStorage.setItem("masteredKanji", JSON.stringify([]));
+      localStorage.setItem("masteredKotoba", JSON.stringify([]));
+      localStorage.setItem("uniqueKotobaAnswered", JSON.stringify([]));
+      return; // Hentikan sinkronisasi hafalan
+    }
+
     const newKanji = localMasteredKanji.filter((id: number) => !existingKanji.has(id));
     const newKotoba = localMasteredKotoba.filter((id: number) => !existingKotoba.has(id));
     const newUniqueKotoba = uniqueKotoba.filter((id: number) => !existingKotoba.has(id));
@@ -116,7 +129,6 @@ export async function syncDataToDatabase() {
     localStorage.setItem("masteredKotoba", JSON.stringify(allKotobaFromDB));
 
     // === 7. SINKRONISASI ACHIEVEMENT ===
-    // 🆕 Ambil achievement dari DB
     const { data: dbAchievements } = await supabase
       .from('user_achievements')
       .select('achievement_id')
@@ -124,16 +136,33 @@ export async function syncDataToDatabase() {
 
     const dbUnlockedIds = (dbAchievements || []).map(a => a.achievement_id);
 
-    // 🆕 Gabungkan dengan achievement lokal
+    // 🆕 PENGAMAN: Jika DB kosong dan lokal ada isinya, reset lokal
     const kanjiStats = JSON.parse(localStorage.getItem("kanjiAchievements") || "{}");
     const kotobaStats = JSON.parse(localStorage.getItem("kotobaExamStats") || "{}");
     const localUnlockedKanji = kanjiStats.unlocked || [];
     const localUnlockedKotoba = kotobaStats.unlocked || [];
 
+    const isFreshAchievement = dbUnlockedIds.length === 0;
+    const hasLocalAchievement = localUnlockedKanji.length > 0 || localUnlockedKotoba.length > 0;
+
+    if (isFreshAchievement && hasLocalAchievement) {
+      console.log("Akun baru terdeteksi, membersihkan data achievement lokal...");
+      localStorage.setItem("kanjiAchievements", JSON.stringify({ ...kanjiStats, unlocked: [] }));
+      localStorage.setItem("kotobaExamStats", JSON.stringify({ ...kotobaStats, unlocked: [] }));
+      
+      // Hapus juga penanda permanen agar achievement benar-benar fresh
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith("achievement_shown_permanent_")) {
+          localStorage.removeItem(key);
+        }
+      });
+      return;
+    }
+
+    // 🆕 Gabungkan dengan achievement lokal (untuk user lama yang sync)
     const combinedUnlockedKanji = Array.from(new Set([...localUnlockedKanji, ...dbUnlockedIds]));
     const combinedUnlockedKotoba = Array.from(new Set([...localUnlockedKotoba, ...dbUnlockedIds]));
 
-    // 🆕 Simpan ke localStorage agar checkAchievements tahu ini sudah unlock
     localStorage.setItem("kanjiAchievements", JSON.stringify({ 
       ...kanjiStats, 
       unlocked: combinedUnlockedKanji 
@@ -144,7 +173,7 @@ export async function syncDataToDatabase() {
       unlocked: combinedUnlockedKotoba 
     }));
 
-    // 🆕 Sinkronkan kembali ke DB (jika ada yang belum masuk)
+    // Sinkronkan kembali ke DB
     const newAchKanji = localUnlockedKanji.filter((id: string) => !dbUnlockedIds.includes(id));
     const newAchKotoba = localUnlockedKotoba.filter((id: string) => !dbUnlockedIds.includes(id));
     const allNewAch = Array.from(new Set([...newAchKanji, ...newAchKotoba]));
@@ -154,7 +183,6 @@ export async function syncDataToDatabase() {
         user_id: user.id,
         achievement_id: achId
       }));
-      // Gunakan upsert agar tidak error jika sudah ada
       await supabase.from('user_achievements').upsert(achData, { onConflict: 'user_id,achievement_id' });
     }
 
