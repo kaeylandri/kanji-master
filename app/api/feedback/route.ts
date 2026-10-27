@@ -2,7 +2,7 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 
-// 🆕 Inisialisasi Resend
+// Inisialisasi Resend
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(request: Request) {
@@ -18,10 +18,17 @@ export async function POST(request: Request) {
       );
     }
 
-    // 3. Kirim email ke kamu
+    // 3. Kirim email
     const { data, error } = await resend.emails.send({
-      from: "Kanji Master Feedback <onboarding@resend.dev>", // 🆕 Domain default Resend (bisa diganti jika sudah verifikasi domain)
-      to: ["ramadhankeylandri@gmail.com"], // 🆕 Email penerima
+      // 🆕 from: Harus menggunakan domain default Resend saat testing
+      from: "Kanji Master Feedback <onboarding@resend.dev>",
+      
+      // 🆕 to: GANTI KE EMAIL YANG TERDAFTAR DI RESEND (keypengenturu@gmail.com)
+      to: ["keypengenturu@gmail.com"],
+      
+      // 🆕 replyTo: Agar saat kamu klik "Reply", balasan langsung ke user yang mengirim feedback
+      replyTo: email,
+      
       subject: `[Kanji Master Feedback] ${subject}`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f8fafc; border-radius: 12px;">
