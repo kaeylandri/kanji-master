@@ -4,7 +4,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/utils/supabase";
-import { BattleMatch, BattleParticipant, BattleQuestion, BattleStatus } from "@/utils/battleTypes";
+import { BattleMatch, BattleParticipant, BattleQuestion } from "@/utils/battleTypes";
 import BattleScoreboard from "@/components/battle/BattleScoreboard";
 
 export default function BattleRoomPage() {

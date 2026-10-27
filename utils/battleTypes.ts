@@ -1,6 +1,8 @@
 // utils/battleTypes.ts
 
 export type BattleMode = 'kanji' | 'kotoba' | 'random';
+
+// 👇 PASTIKAN 'paused' ADA DI SINI
 export type BattleStatus = 'waiting' | 'countdown' | 'active' | 'paused' | 'completed' | 'cancelled';
 
 export interface BattleMatch {
@@ -27,7 +29,7 @@ export interface BattleParticipant {
   correct_count: number;
   wrong_count: number;
   status: 'waiting' | 'ready' | 'active' | 'disconnected' | 'forfeited' | 'completed';
-  profiles?: { // Join data
+  profiles?: {
     username: string;
     avatar_url: string;
   };
@@ -41,5 +43,4 @@ export interface BattleQuestion {
   item_id: number;
   question_text: string;
   options: string[];
-  // correct_answer TIDAK ADA di interface ini karena tidak dikirim ke client
 }
