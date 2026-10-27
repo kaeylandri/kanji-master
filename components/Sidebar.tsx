@@ -26,6 +26,7 @@ export default function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsO
     { name: "Permintaan", href: "/friend-requests", icon: "📩" },
     { name: "Kalender", href: "/kalender", icon: "📅" },
     { name: "Sakura Shop", href: "/shop", icon: "🌸" },
+    { name: "Kritik & Saran", href: "/pesan", icon: "📬" },
   ];
 
   return (
