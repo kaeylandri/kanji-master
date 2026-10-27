@@ -4,7 +4,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/utils/supabase";
-import { BattleMatch, BattleParticipant, BattleQuestion } from "@/utils/battleTypes";
+import { BattleMatch, BattleParticipant, BattleQuestion, BattleStatus } from "@/utils/battleTypes";
 import BattleScoreboard from "@/components/battle/BattleScoreboard";
 
 export default function BattleRoomPage() {
@@ -149,7 +149,12 @@ export default function BattleRoomPage() {
       <div className="w-full max-w-2xl">
         
         {/* Scoreboard */}
-        <BattleScoreboard me={me} opponent={opponent} endsAt={match.ends_at!} isPaused={match.status === 'paused'} />
+        <BattleScoreboard 
+          me={me} 
+          opponent={opponent} 
+          endsAt={match.ends_at!} 
+          isPaused={match.status === 'paused'} 
+        />
 
         {/* Area Soal */}
         <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-8 text-center relative overflow-hidden">
