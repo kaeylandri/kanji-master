@@ -29,11 +29,7 @@ export default function BattleRoomPage() {
       if (!matchData) return router.push('/battle');
       setMatch(matchData);
 
-      const { data: parts } = await supabase
-        .from('battle_participants')
-        .select('*, profiles(username, avatar_url)')
-        .eq('match_id', matchId);
-      
+      const { data: parts } = await supabase.from('battle_participants').select('*, profiles(username, avatar_url)').eq('match_id', matchId);
       if (parts) {
         setMe(parts.find(p => p.user_id === user.id) || null);
         setOpponent(parts.find(p => p.user_id !== user.id) || null);
@@ -49,14 +45,9 @@ export default function BattleRoomPage() {
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'battle_matches', filter: `id=eq.${matchId}` }, (payload) => {
         const updatedMatch = payload.new as BattleMatch;
         setMatch(updatedMatch);
-        
-        // Jika pemilik ruangan menekan "Mulai", jalankan countdown
-        if (updatedMatch.status === 'active' && countdown === null) {
-          setCountdown(3);
-        }
+        if (updatedMatch.status === 'active' && countdown === null) setCountdown(3);
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'battle_participants', filter: `match_id=eq.${matchId}` }, async () => {
-        // Update status peserta (jika lawan baru join/ready)
         const { data: parts } = await supabase.from('battle_participants').select('*, profiles(username, avatar_url)').eq('match_id', matchId);
         if (parts) {
           setMe(parts.find(p => p.user_id === me?.user_id) || null);
@@ -64,7 +55,6 @@ export default function BattleRoomPage() {
         }
       })
       .subscribe();
-
     return () => { supabase.removeChannel(channel); };
   }, [matchId, countdown, me?.user_id]);
 
@@ -80,17 +70,13 @@ export default function BattleRoomPage() {
     }
   }, [countdown, matchId, router]);
 
-  // 4. Fungsi Mulai Pertandingan (Hanya untuk Pemilik Ruangan)
   const handleStartMatch = async () => {
     setStarting(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch('/api/battle/start', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token}`
-        },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
         body: JSON.stringify({ matchId })
       });
       if (!res.ok) throw new Error("Gagal memulai pertandingan");
@@ -109,16 +95,12 @@ export default function BattleRoomPage() {
 
   return (
     <div className="min-h-screen bg-[#0B0E14] flex flex-col relative overflow-hidden font-sans">
-      
-      {/* Background Effects */}
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -left-40 w-96 h-96 bg-blue-600/20 rounded-full blur-[100px]"></div>
         <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-pink-600/20 rounded-full blur-[100px]"></div>
       </div>
 
       <div className="relative z-10 w-full max-w-5xl mx-auto p-6 md:p-12 flex flex-col min-h-screen">
-        
-        {/* Header Ruang Laga */}
         <div className="mb-8">
           <h1 className="text-3xl font-black text-yellow-400 mb-1 tracking-wide">Ruang Laga</h1>
           <div className="flex items-center gap-2 text-blue-400">
@@ -127,19 +109,10 @@ export default function BattleRoomPage() {
           </div>
         </div>
 
-        {/* Card Ruang Laga */}
         <div className="bg-[#151A25] border border-slate-800 rounded-3xl p-6 md:p-8 flex-1 flex flex-col shadow-2xl">
-          
-          {/* Pemilik Ruangan (Kamu / Lawan) */}
           <div className="flex items-center gap-4 mb-6">
             <div className="w-16 h-16 rounded-full border-2 border-yellow-500 bg-slate-800 overflow-hidden">
-              {me.profiles?.avatar_url ? (
-                <img src={me.profiles.avatar_url} className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-yellow-500 font-bold text-xl">
-                  {me.profiles?.username?.charAt(0).toUpperCase()}
-                </div>
-              )}
+              {me.profiles?.avatar_url ? <img src={me.profiles.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-yellow-500 font-bold text-xl">{me.profiles?.username?.charAt(0).toUpperCase()}</div>}
             </div>
             <div>
               <h2 className="text-white font-bold text-xl">{me.profiles?.username}</h2>
@@ -149,25 +122,14 @@ export default function BattleRoomPage() {
 
           <div className="w-full h-px bg-slate-800 my-2 mb-6"></div>
 
-          {/* Slot Lawan */}
           {opponent ? (
             <div className="flex items-center gap-4 mb-6 animate-in fade-in slide-in-from-bottom-4">
               <div className="w-16 h-16 rounded-full border-2 border-blue-500 bg-slate-800 overflow-hidden">
-                {opponent.profiles?.avatar_url ? (
-                  <img src={opponent.profiles.avatar_url} className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-blue-500 font-bold text-xl">
-                    {opponent.profiles?.username?.charAt(0).toUpperCase()}
-                  </div>
-                )}
+                {opponent.profiles?.avatar_url ? <img src={opponent.profiles.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-blue-500 font-bold text-xl">{opponent.profiles?.username?.charAt(0).toUpperCase()}</div>}
               </div>
               <div>
                 <h2 className="text-white font-bold text-xl">{opponent.profiles?.username}</h2>
-                {isOpponentReady ? (
-                  <span className="text-xs text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded">Siap Bertanding</span>
-                ) : (
-                  <span className="text-xs text-slate-400 font-bold bg-slate-800 px-2 py-0.5 rounded animate-pulse">Menghubungkan...</span>
-                )}
+                {isOpponentReady ? <span className="text-xs text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded">Siap Bertanding</span> : <span className="text-xs text-slate-400 font-bold bg-slate-800 px-2 py-0.5 rounded animate-pulse">Menghubungkan...</span>}
               </div>
             </div>
           ) : (
@@ -182,42 +144,25 @@ export default function BattleRoomPage() {
             </div>
           )}
 
-          {/* Footer Card: Tombol Mulai (Hanya untuk Pemilik) */}
           <div className="mt-auto pt-6 flex flex-col md:flex-row justify-between items-center gap-4">
             <p className="text-sm text-slate-500 font-medium">
-              {isOwner 
-                ? (isOpponentReady ? "Lawan sudah siap. Mulai pertandingan!" : "Menunggu lawan bergabung...")
-                : "Menunggu pemilik ruangan memulai pertandingan..."}
+              {isOwner ? (isOpponentReady ? "Lawan sudah siap. Mulai pertandingan!" : "Menunggu lawan bergabung...") : "Menunggu pemilik ruangan memulai pertandingan..."}
             </p>
-            
             {isOwner && (
-              <button
-                onClick={handleStartMatch}
-                disabled={!isOpponentReady || starting || match.status === 'active'}
-                className={`px-8 py-3 rounded-xl font-black text-white shadow-lg transition-all ${
-                  isOpponentReady 
-                    ? 'bg-gradient-to-r from-blue-600 to-cyan-500 hover:scale-105 hover:shadow-[0_0_20px_rgba(59,130,246,0.5)]' 
-                    : 'bg-slate-700 cursor-not-allowed opacity-50'
-                }`}
-              >
+              <button onClick={handleStartMatch} disabled={!isOpponentReady || starting || match.status === 'active'} className={`px-8 py-3 rounded-xl font-black text-white shadow-lg transition-all ${isOpponentReady ? 'bg-gradient-to-r from-blue-600 to-cyan-500 hover:scale-105 hover:shadow-[0_0_20px_rgba(59,130,246,0.5)]' : 'bg-slate-700 cursor-not-allowed opacity-50'}`}>
                 {starting ? 'Memulai...' : 'Mulai Pertandingan ⚔️'}
               </button>
             )}
           </div>
         </div>
 
-        {/* Tombol Kembali (Batal) */}
         <div className="mt-8">
-          <button 
-            onClick={() => router.push('/battle')}
-            className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors font-medium"
-          >
+          <button onClick={() => router.push('/battle')} className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors font-medium">
             <span className="text-xl">⬅</span> Keluar dari Ruang Laga
           </button>
         </div>
       </div>
 
-      {/* COUNTDOWN OVERLAY */}
       {countdown !== null && (
         <div className="fixed inset-0 z-50 bg-[#0B0E14]/95 flex items-center justify-center backdrop-blur-md">
           <div className="text-center">
@@ -228,7 +173,6 @@ export default function BattleRoomPage() {
           </div>
         </div>
       )}
-
     </div>
   );
 }
