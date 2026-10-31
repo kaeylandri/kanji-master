@@ -4,7 +4,6 @@
 import { useState } from "react";
 import Sidebar from "./Sidebar";
 import HeaderStats from "./HeaderStats";
-import BattleInviteNotif from "./BattleInviteNotif"; // 🆕 Import Notifikasi Battle
 
 export default function AppLayout({ 
   children, 
@@ -51,9 +50,7 @@ export default function AppLayout({
         </main>
       </div>
 
-      {/* 🆕 KOMPONEN NOTIFIKASI BATTLE */}
-      {/* Diletakkan di luar div konten utama agar posisinya fixed di pojok layar */}
-      <BattleInviteNotif />
+
     </div>
   );
 }
