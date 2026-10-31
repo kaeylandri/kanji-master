@@ -17,19 +17,30 @@ export default function BattleInviteNotif() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Ambil undangan yang statusnya 'pending' saat halaman dimuat
+      // 1. Ambil undangan yang statusnya 'pending' saat halaman pertama kali dimuat
       const { data } = await supabase
         .from('battle_invites')
-        .select(`
-          id, match_id, sender_id,
-          sender:profiles!battle_invites_sender_id_fkey(username, avatar_url)
-        `)
+        .select('id, match_id, sender_id')
         .eq('receiver_id', user.id)
         .eq('status', 'pending');
       
-      if (data) setInvites(data);
+      if (data && data.length > 0) {
+        // Ambil data profil pengirim secara manual
+        const senderIds = data.map(d => d.sender_id);
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, username, avatar_url')
+          .in('id', senderIds);
 
-      // Dengarkan Realtime (Undangan baru)
+        const invitesWithProfile = data.map(inv => ({
+          ...inv,
+          sender: profiles?.find(p => p.id === inv.sender_id)
+        }));
+        
+        setInvites(invitesWithProfile);
+      }
+
+      // 2. Dengarkan Realtime (Jika ada undangan baru masuk)
       channel = supabase.channel('battle_invites_channel')
         .on('postgres_changes', { 
           event: 'INSERT', 
@@ -37,10 +48,10 @@ export default function BattleInviteNotif() {
           table: 'battle_invites',
           filter: `receiver_id=eq.${user.id}`
         }, async (payload) => {
-          // Fetch detail sender karena realtime payload tidak join tabel
+          // Ambil profil pengirim
           const { data: senderData } = await supabase
             .from('profiles')
-            .select('username, avatar_url')
+            .select('id, username, avatar_url')
             .eq('id', payload.new.sender_id)
             .single();
 
@@ -72,11 +83,11 @@ export default function BattleInviteNotif() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
-      // Hapus dari list
+      // Hapus dari daftar pop-up
       setInvites(prev => prev.filter(i => i.id !== inviteId));
 
       if (action === 'accept') {
-        // Pindah ke Room
+        // Arahkan ke ruang tunggu (room)
         router.push(`/battle/room/${matchId}`);
       }
     } catch (err: any) {
@@ -93,12 +104,12 @@ export default function BattleInviteNotif() {
       {invites.map((invite) => (
         <div key={invite.id} className="bg-white p-4 rounded-2xl shadow-2xl border-2 border-pink-500 w-80 animate-in slide-in-from-right-8 fade-in">
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-full bg-pink-100 overflow-hidden flex-shrink-0">
+            <div className="w-10 h-10 rounded-full bg-pink-100 overflow-hidden flex-shrink-0 border border-pink-200">
               {invite.sender?.avatar_url ? (
                 <img src={invite.sender.avatar_url} className="w-full h-full object-cover" />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-pink-500 font-bold">
-                  {invite.sender?.username?.charAt(0).toUpperCase()}
+                  {invite.sender?.username?.charAt(0).toUpperCase() || "?"}
                 </div>
               )}
             </div>
