@@ -3,6 +3,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import BattleInviteNotif from "@/components/BattleInviteNotif"; // 🆕 Import Notifikasi
 
 export default function BattleHomePage() {
   const [stats, setStats] = useState({ wins: 0, losses: 0, draws: 0 });
@@ -95,6 +96,9 @@ export default function BattleHomePage() {
         </div>
 
       </div>
+
+      {/* 🆕 TAMBAHKAN KOMPONEN NOTIFIKASI DI SINI */}
+      <BattleInviteNotif />
     </div>
   );
 }
