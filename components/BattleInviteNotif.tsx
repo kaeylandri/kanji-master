@@ -17,7 +17,7 @@ export default function BattleInviteNotif() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // 1. Ambil undangan yang statusnya 'pending' saat halaman pertama kali dimuat
+      // 1. Ambil undangan yang statusnya 'pending'
       const { data } = await supabase
         .from('battle_invites')
         .select('id, match_id, sender_id')
@@ -25,7 +25,6 @@ export default function BattleInviteNotif() {
         .eq('status', 'pending');
       
       if (data && data.length > 0) {
-        // Ambil data profil pengirim secara manual
         const senderIds = data.map(d => d.sender_id);
         const { data: profiles } = await supabase
           .from('profiles')
@@ -40,7 +39,7 @@ export default function BattleInviteNotif() {
         setInvites(invitesWithProfile);
       }
 
-      // 2. Dengarkan Realtime (Jika ada undangan baru masuk)
+      // 2. Dengarkan Realtime
       channel = supabase.channel('battle_invites_channel')
         .on('postgres_changes', { 
           event: 'INSERT', 
@@ -48,7 +47,6 @@ export default function BattleInviteNotif() {
           table: 'battle_invites',
           filter: `receiver_id=eq.${user.id}`
         }, async (payload) => {
-          // Ambil profil pengirim
           const { data: senderData } = await supabase
             .from('profiles')
             .select('id, username, avatar_url')
@@ -87,7 +85,7 @@ export default function BattleInviteNotif() {
       setInvites(prev => prev.filter(i => i.id !== inviteId));
 
       if (action === 'accept') {
-        // Arahkan ke ruang tunggu (room)
+        // 🆕 PASTIKAN MENGARAH KE ROOM (Ruang Laga)
         router.push(`/battle/room/${matchId}`);
       }
     } catch (err: any) {

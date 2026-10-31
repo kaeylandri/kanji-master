@@ -11,11 +11,12 @@ export async function POST(req: Request) {
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    
     const token = authHeader.replace("Bearer ", "");
     const { data: { user } } = await supabaseAdmin.auth.getUser(token);
     if (!user) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
 
-    const { inviteId, matchId, action } = await req.json(); // action: 'accept' atau 'reject'
+    const { inviteId, matchId, action } = await req.json();
 
     // 1. Ambil data undangan
     const { data: invite } = await supabaseAdmin
@@ -46,17 +47,10 @@ export async function POST(req: Request) {
       .eq('match_id', matchId)
       .eq('user_id', user.id);
 
-    // 5. Mulai Pertandingan! (Set waktu mulai & selesai)
-    const now = new Date();
-    const endsAt = new Date(now.getTime() + 120 * 1000); // 120 detik dari sekarang
+    // 🆕 JANGAN UBAH STATUS MATCH JADI 'active' DI SINI.
+    // Biarkan statusnya 'waiting' sampai pemilik ruangan menekan tombol "Mulai Pertandingan".
 
-    await supabaseAdmin.from('battle_matches').update({
-      status: 'active', // Langsung aktif (countdown akan ditangani di UI)
-      started_at: now.toISOString(),
-      ends_at: endsAt.toISOString()
-    }).eq('id', matchId);
-
-    return NextResponse.json({ success: true, message: "Undangan diterima" });
+    return NextResponse.json({ success: true, message: "Undangan diterima", matchId });
 
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });

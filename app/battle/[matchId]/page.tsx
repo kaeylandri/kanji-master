@@ -21,7 +21,6 @@ export default function BattleRoomPage() {
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null);
   
-  // Timer Response
   const questionStartTime = useRef<number>(Date.now());
 
   // 1. Fetch Initial Data
@@ -30,12 +29,16 @@ export default function BattleRoomPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return router.push('/login');
 
-      // Fetch Match
       const { data: matchData } = await supabase.from('battle_matches').select('*').eq('id', matchId).single();
       if (!matchData) return router.push('/battle');
+      
+      // Jika match belum aktif, kembalikan ke room
+      if (matchData.status === 'waiting') {
+        return router.push(`/battle/room/${matchId}`);
+      }
+
       setMatch(matchData);
 
-      // Fetch Participants (dengan join profiles)
       const { data: parts } = await supabase
         .from('battle_participants')
         .select('*, profiles(username, avatar_url)')
@@ -46,7 +49,6 @@ export default function BattleRoomPage() {
         setOpponent(parts.find(p => p.user_id !== user.id) || null);
       }
 
-      // Fetch Questions (Hanya kolom aman)
       const { data: qs } = await supabase
         .from('battle_questions')
         .select('id, question_order, item_type, item_id, question_text, options')
@@ -59,7 +61,7 @@ export default function BattleRoomPage() {
     fetchData();
   }, [matchId, router]);
 
-  // 2. Realtime Listener (Skor Lawan & Status Match)
+  // 2. Realtime Listener
   useEffect(() => {
     const channel = supabase.channel(`battle:${matchId}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'battle_participants', filter: `match_id=eq.${matchId}` }, (payload) => {
@@ -85,8 +87,7 @@ export default function BattleRoomPage() {
     const timeTaken = Date.now() - questionStartTime.current;
     const currentQ = questions[currentQIndex];
 
-    // Tampilkan feedback sementara (Optimistic)
-    setFeedback('correct'); // Asumsi benar dulu, nanti dikoreksi server jika salah
+    setFeedback('correct'); // Optimistic
 
     try {
       const res = await fetch('/api/battle/answer', {
@@ -106,7 +107,6 @@ export default function BattleRoomPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
-      // Koreksi feedback jika ternyata salah
       if (!data.isCorrect) setFeedback('wrong');
 
     } catch (err) {
@@ -114,7 +114,6 @@ export default function BattleRoomPage() {
       setFeedback('wrong');
     }
 
-    // Delay sebelum lanjut ke soal berikutnya
     setTimeout(() => {
       setFeedback(null);
       setCurrentQIndex(prev => prev + 1);
@@ -123,10 +122,9 @@ export default function BattleRoomPage() {
   };
 
   if (loading || !match || !me || !opponent) {
-    return <div className="flex h-screen items-center justify-center text-slate-500">Memuat Arena...</div>;
+    return <div className="flex h-screen items-center justify-center text-slate-500 font-bold">Memuat Arena...</div>;
   }
 
-  // Tampilan Pause Overlay
   if (match.status === 'paused') {
     return (
       <div className="flex h-screen items-center justify-center bg-slate-50">
@@ -141,14 +139,13 @@ export default function BattleRoomPage() {
   const currentQ = questions[currentQIndex];
 
   if (!currentQ) {
-    return <div className="flex h-screen items-center justify-center text-slate-500">Menghitung hasil...</div>;
+    return <div className="flex h-screen items-center justify-center text-slate-500 font-bold">Menghitung hasil...</div>;
   }
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-8 flex flex-col items-center">
       <div className="w-full max-w-2xl">
         
-        {/* Scoreboard */}
         <BattleScoreboard 
           me={me} 
           opponent={opponent} 
@@ -156,22 +153,17 @@ export default function BattleRoomPage() {
           isPaused={String(match.status) === 'paused'}
         />
 
-        {/* Area Soal */}
         <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-8 text-center relative overflow-hidden">
-          
-          {/* Indikator Soal */}
           <div className="absolute top-4 left-4 text-xs font-semibold text-slate-400">
             Soal {currentQIndex + 1}
           </div>
 
-          {/* Teks Soal (Kanji / Kotoba) */}
           <div className="my-8">
             <h1 className="text-6xl md:text-8xl font-black text-slate-800 tracking-wider">
               {currentQ.question_text}
             </h1>
           </div>
 
-          {/* Pilihan Jawaban (2x2 Grid) */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8">
             {currentQ.options.map((opt, i) => (
               <button
@@ -193,7 +185,6 @@ export default function BattleRoomPage() {
             ))}
           </div>
 
-          {/* Overlay Benar/Salah */}
           {feedback && (
             <div className={`absolute inset-0 flex items-center justify-center backdrop-blur-sm ${feedback === 'correct' ? 'bg-emerald-500/20' : 'bg-red-500/20'}`}>
               <span className={`text-6xl font-black ${feedback === 'correct' ? 'text-emerald-500' : 'text-red-500'} animate-bounce`}>
