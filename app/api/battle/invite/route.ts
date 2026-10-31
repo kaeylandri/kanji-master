@@ -16,6 +16,7 @@ function generateQuestions(mode: 'kanji' | 'kotoba' | 'random', count: number = 
   // Masukkan data Kanji jika mode kanji atau random
   if (mode === 'kanji' || mode === 'random') {
     pool = [...pool, ...KANJI_DATA.map(k => {
+      // Ambil 3 distraktor (jawaban salah) dari data lain secara acak
       const otherKanji = KANJI_DATA.filter(x => x.id !== k.id);
       const shuffled = otherKanji.sort(() => 0.5 - Math.random());
       const wrongs = shuffled.slice(0, 3).map(x => x.meaning);
@@ -24,7 +25,7 @@ function generateQuestions(mode: 'kanji' | 'kotoba' | 'random', count: number = 
         type: 'kanji', 
         id: k.id, 
         text: k.character, 
-        correct: k.meaning, 
+        correct: k.meaning, // Tebak artinya
         wrongs: wrongs
       };
     })];
@@ -33,6 +34,7 @@ function generateQuestions(mode: 'kanji' | 'kotoba' | 'random', count: number = 
   // Masukkan data Kotoba jika mode kotoba atau random
   if (mode === 'kotoba' || mode === 'random') {
     pool = [...pool, ...KOTOBA_DATA.map((k: any) => {
+      // Ambil 3 distraktor (jawaban salah) dari data lain secara acak
       const otherKotoba = KOTOBA_DATA.filter((x: any) => x.id !== k.id);
       const shuffled = otherKotoba.sort(() => 0.5 - Math.random());
       const wrongs = shuffled.slice(0, 3).map((x: any) => x.meaning);
@@ -52,6 +54,7 @@ function generateQuestions(mode: 'kanji' | 'kotoba' | 'random', count: number = 
   const selected = pool.slice(0, count);
 
   return selected.map((item) => {
+    // Gabungkan jawaban benar dan 3 jawaban salah, lalu acak posisinya
     const options = [item.correct, ...item.wrongs].sort(() => Math.random() - 0.5);
     
     return {
@@ -78,15 +81,29 @@ export async function POST(req: Request) {
 
     if (user.id === receiverId) return NextResponse.json({ error: "Tidak bisa menantang diri sendiri" }, { status: 400 });
 
-    // 2. Cek apakah mereka berteman (status: accepted)
-    const { data: friendship } = await supabaseAdmin
+    // =========================================================================
+    // 2. CEK PERTEMANAN (Versi Anti-Gagal: Cek Dua Arah)
+    // =========================================================================
+    const { data: friendship1 } = await supabaseAdmin
       .from('friends')
       .select('id')
-      .or(`and(user_id.eq.${user.id},friend_id.eq.${receiverId}),and(user_id.eq.${receiverId},friend_id.eq.${user.id})`)
+      .eq('user_id', user.id)
+      .eq('friend_id', receiverId)
       .eq('status', 'accepted')
       .maybeSingle();
 
-    if (!friendship) return NextResponse.json({ error: "Hanya bisa menantang teman" }, { status: 403 });
+    const { data: friendship2 } = await supabaseAdmin
+      .from('friends')
+      .select('id')
+      .eq('user_id', receiverId)
+      .eq('friend_id', user.id)
+      .eq('status', 'accepted')
+      .maybeSingle();
+
+    if (!friendship1 && !friendship2) {
+      return NextResponse.json({ error: "Hanya bisa menantang teman" }, { status: 403 });
+    }
+    // =========================================================================
 
     // =========================================================================
     // 3. CEK APAKAH SEDANG DALAM MATCH AKTIF (DENGAN LOGIKA AUTO-CANCEL)
