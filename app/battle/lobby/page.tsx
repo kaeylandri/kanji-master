@@ -36,21 +36,35 @@ export default function BattleLobbyPage() {
     setInviting(receiverId);
     try {
       const { data: { session } } = await supabase.auth.getSession();
+      
       const res = await fetch('/api/battle/invite', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
+        headers: { 
+          'Content-Type': 'application/json', 
+          'Authorization': `Bearer ${session?.access_token}` 
+        },
         body: JSON.stringify({ receiverId, mode })
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      
+      // 🆕 JIKA API GAGAL (Error 400, 403, 500, dll)
+      if (!res.ok) {
+        throw new Error(data.error || "Gagal mengirim undangan");
+      }
 
-      // 🆕 LANGSUNG ARAHKAN KE RUANG LAGA (ROOM)
-      router.push(`/battle/room/${data.matchId}`);
+      // 🆕 JIKA SUKSES: Pastikan data.matchId ada, lalu redirect
+      if (data.matchId) {
+        console.log("Undangan sukses, pindah ke room:", data.matchId);
+        router.push(`/battle/room/${data.matchId}`);
+      } else {
+        throw new Error("Match ID tidak diterima dari server");
+      }
 
     } catch (err: any) {
-      alert("Gagal mengirim undangan: " + err.message);
-      setInviting(null);
+      // 🆕 TAMPILKAN ERROR DAN KEMBALIKAN TOMBOL KE SEMULA
+      alert(err.message);
+      setInviting(null); // Ini yang sebelumnya terlupakan!
     }
   };
 
@@ -66,7 +80,7 @@ export default function BattleLobbyPage() {
           <h2 className="font-bold text-slate-700 mb-4">1. Pilih Mode Pertandingan</h2>
           <div className="grid grid-cols-3 gap-3">
             {(['kanji', 'kotoba', 'random'] as BattleMode[]).map((m) => (
-              <button key={m} onClick={() => setMode(m)} className={`py-3 rounded-xl font-bold capitalize transition-all border-2 ${mode === m ? 'bg-blue-50 border-blue-500 text-blue-600' : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-blue-300'}`}>
+              <button key={m} onClick={() => setMode(m)} disabled={!!inviting} className={`py-3 rounded-xl font-bold capitalize transition-all border-2 ${mode === m ? 'bg-blue-50 border-blue-500 text-blue-600' : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-blue-300'}`}>
                 {m}
               </button>
             ))}
@@ -75,6 +89,7 @@ export default function BattleLobbyPage() {
 
         <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
           <h2 className="font-bold text-slate-700 mb-4">2. Pilih Teman untuk Ditantang</h2>
+          
           {loading ? (
             <p className="text-center text-slate-500 py-8 animate-pulse">Memuat daftar teman...</p>
           ) : friends.length === 0 ? (
@@ -92,8 +107,12 @@ export default function BattleLobbyPage() {
                     </div>
                     <span className="font-bold text-slate-700">{f.username}</span>
                   </div>
-                  <button onClick={() => handleInvite(f.id)} disabled={inviting === f.id} className={`px-6 py-2 rounded-xl font-bold text-white transition-all ${inviting === f.id ? 'bg-slate-400 cursor-not-allowed' : 'bg-pink-500 hover:bg-pink-600 shadow-md hover:shadow-lg'}`}>
-                    {inviting === f.id ? 'Mengundang...' : 'Tantang ⚔️'}
+                  <button 
+                    onClick={() => handleInvite(f.id)} 
+                    disabled={inviting === f.id} 
+                    className={`px-6 py-2 rounded-xl font-bold text-white transition-all ${inviting === f.id ? 'bg-slate-400 cursor-wait' : 'bg-pink-500 hover:bg-pink-600 shadow-md hover:shadow-lg'}`}
+                  >
+                    {inviting === f.id ? 'Memproses...' : 'Tantang ⚔️'}
                   </button>
                 </div>
               ))}
