@@ -13,9 +13,6 @@ export default function BattleLobbyPage() {
   const [mode, setMode] = useState<BattleMode>('kanji');
   const [loading, setLoading] = useState(true);
   const [inviting, setInviting] = useState<string | null>(null);
-  
-  // State untuk menunggu lawan di halaman Lobby
-  const [waitingMatchId, setWaitingMatchId] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchFriends() {
@@ -35,22 +32,6 @@ export default function BattleLobbyPage() {
     fetchFriends();
   }, [router]);
 
-  // Realtime Listener untuk mendeteksi jika teman menerima undangan
-  useEffect(() => {
-    if (!waitingMatchId) return;
-
-    const channel = supabase.channel(`lobby_wait:${waitingMatchId}`)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'battle_participants', filter: `match_id=eq.${waitingMatchId}` }, (payload) => {
-        // Jika lawan berubah status jadi 'ready', masuk ke Room
-        if (payload.new.status === 'ready') {
-          router.push(`/battle/room/${waitingMatchId}`);
-        }
-      })
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, [waitingMatchId, router]);
-
   const handleInvite = async (receiverId: string) => {
     setInviting(receiverId);
     try {
@@ -64,27 +45,14 @@ export default function BattleLobbyPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
-      // 🆕 Jangan redirect! Simpan matchId untuk memantau realtime
-      setWaitingMatchId(data.matchId);
+      // 🆕 LANGSUNG ARAHKAN KE RUANG LAGA (ROOM)
+      router.push(`/battle/room/${data.matchId}`);
 
     } catch (err: any) {
       alert("Gagal mengirim undangan: " + err.message);
       setInviting(null);
     }
   };
-
-  if (waitingMatchId) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
-        <div className="w-20 h-20 border-4 border-pink-500 border-t-transparent rounded-full animate-spin mb-6"></div>
-        <h2 className="text-2xl font-bold text-slate-800 mb-2">Menunggu Lawan Menerima...</h2>
-        <p className="text-slate-500 mb-8 text-center max-w-md">Undangan telah dikirim. Halaman ini akan otomatis berpindah ke Ruang Laga jika lawan menerima tantanganmu.</p>
-        <button onClick={() => setWaitingMatchId(null)} className="px-6 py-2 bg-slate-200 text-slate-600 rounded-xl font-bold hover:bg-slate-300 transition">
-          Batalkan Undangan
-        </button>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-8">

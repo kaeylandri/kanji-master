@@ -26,6 +26,7 @@ export default function BattleRoomPage() {
       if (!user) return router.push('/login');
 
       const { data: matchData } = await supabase.from('battle_matches').select('*').eq('id', matchId).single();
+      // Jika benar-benar match tidak ada di DB, baru kembalikan ke /battle
       if (!matchData) return router.push('/battle');
       setMatch(matchData);
 
