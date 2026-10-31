@@ -2,7 +2,7 @@
 
 export type BattleMode = 'kanji' | 'kotoba' | 'random';
 
-// 👇 PASTIKAN 'paused' ADA DI SINI
+// Status pertandingan (termasuk 'paused' untuk fitur jeda koneksi)
 export type BattleStatus = 'waiting' | 'countdown' | 'active' | 'paused' | 'completed' | 'cancelled';
 
 export interface BattleMatch {

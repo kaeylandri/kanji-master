@@ -14,33 +14,15 @@ export default function BattleLobbyPage() {
   const [loading, setLoading] = useState(true);
   const [inviting, setInviting] = useState<string | null>(null);
 
-  // 1. Ambil data teman (Versi 2: Lebih Aman)
   useEffect(() => {
     async function fetchFriends() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return router.push('/login');
 
-      // A. Ambil relasi di mana KITA sebagai pengirim
-      const { data: req1, error: err1 } = await supabase
-        .from('friends')
-        .select('user_id, friend_id, status')
-        .eq('user_id', user.id)
-        .eq('status', 'accepted');
+      // Ambil ID teman (dua arah)
+      const { data: req1 } = await supabase.from('friends').select('friend_id').eq('user_id', user.id).eq('status', 'accepted');
+      const { data: req2 } = await supabase.from('friends').select('user_id').eq('friend_id', user.id).eq('status', 'accepted');
 
-      // B. Ambil relasi di mana KITA sebagai penerima
-      const { data: req2, error: err2 } = await supabase
-        .from('friends')
-        .select('user_id, friend_id, status')
-        .eq('friend_id', user.id)
-        .eq('status', 'accepted');
-
-      if (err1 || err2) {
-        console.error("Gagal mengambil relasi pertemanan:", err1 || err2);
-        setLoading(false);
-        return;
-      }
-
-      // Kumpulkan ID teman
       const friendIds = [
         ...(req1?.map(r => r.friend_id) || []),
         ...(req2?.map(r => r.user_id) || [])
@@ -52,24 +34,14 @@ export default function BattleLobbyPage() {
         return;
       }
 
-      // C. Ambil Profil dari ID Teman tersebut
-      const { data: profiles, error: profErr } = await supabase
-        .from('profiles')
-        .select('id, username, avatar_url')
-        .in('id', friendIds);
-
-      if (profErr) {
-        console.error("Gagal mengambil profil:", profErr);
-      } else if (profiles) {
-        setFriends(profiles);
-      }
-      
+      // Ambil profil teman
+      const { data: profiles } = await supabase.from('profiles').select('id, username, avatar_url').in('id', friendIds);
+      if (profiles) setFriends(profiles);
       setLoading(false);
     }
     fetchFriends();
   }, [router]);
 
-  // 2. Fungsi kirim undangan
   const handleInvite = async (receiverId: string) => {
     setInviting(receiverId);
     try {
@@ -86,7 +58,30 @@ export default function BattleLobbyPage() {
 
       const data = await res.json();
       
-      if (!res.ok) throw new Error(data.error);
+      // 🆕 KODE PENTING: Jika error karena "sedang di pertandingan lain",
+      // kita bersihkan paksa sisa undangan lama yang nyangkut.
+      if (!res.ok) {
+        if (data.error === "Pemain sedang dalam pertandingan lain") {
+           // Coba batalkan match lama yang nyangkut
+           const { data: user } = await supabase.auth.getUser();
+           if (user.user) {
+             // Cari match_id yang nyangkut
+             const { data: stuckPart } = await supabase
+                .from('battle_participants')
+                .select('match_id')
+                .eq('user_id', user.user.id)
+                .in('status', ['waiting', 'active', 'paused'])
+                .maybeSingle();
+             
+             if (stuckPart) {
+               // Batalkan paksa di database
+               await supabase.from('battle_matches').update({ status: 'cancelled' }).eq('id', stuckPart.match_id);
+               throw new Error("Sistem membersihkan undangan lama. Silakan klik Tantang lagi.");
+             }
+           }
+        }
+        throw new Error(data.error);
+      }
 
       // Jika sukses, arahkan ke halaman ruang tunggu (room)
       router.push(`/battle/room/${data.matchId}`);
@@ -108,7 +103,6 @@ export default function BattleLobbyPage() {
           <h1 className="text-3xl font-black text-slate-800">Pilih Lawanmu</h1>
         </div>
 
-        {/* Pilih Mode Soal */}
         <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 mb-8">
           <h2 className="font-bold text-slate-700 mb-4">1. Pilih Mode Pertandingan</h2>
           <div className="grid grid-cols-3 gap-3">
@@ -128,7 +122,6 @@ export default function BattleLobbyPage() {
           </div>
         </div>
 
-        {/* Daftar Teman */}
         <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
           <h2 className="font-bold text-slate-700 mb-4">2. Pilih Teman untuk Ditantang</h2>
           
